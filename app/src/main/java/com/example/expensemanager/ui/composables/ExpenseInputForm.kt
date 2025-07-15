@@ -1,4 +1,4 @@
-package com.example.expensemanager.ui
+package com.example.expensemanager.ui.composables
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -16,7 +16,6 @@ fun ExpenseInputForm(
 ) {
     var itemName by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-
     Column(
         modifier = Modifier
             .padding(16.dp)
@@ -60,5 +59,6 @@ fun ExpenseInputFormPreview() {
     ExpenseInputForm(onFormSubmit = { itemName, amount ->
         // In a real app, you'd handle the submission here
         println("Item: $itemName, Amount: $amount")
+
     })
 }

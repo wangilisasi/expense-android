@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.models.Expense
+import com.example.expensemanager.models.ExpenseRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,31 @@ class ExpenseListViewModel @Inject constructor(
     init {
         // If you get it from navigation, you'll need a slightly different approach.
         loadExpenses(trackerId = 1)
+    }
+
+
+    fun addExpense(description: String, amount: Double, date: String) {
+        viewModelScope.launch {
+            try {
+                val newExpense = ExpenseRequest(
+                    // id = 0, // Or whatever your Expense model expects for a new item
+                    trackerId=1, // Link to the current tracker
+                    description = description,
+                    amount = amount,
+                    date = date // Assuming date is already a pre-formatted String
+                )
+
+                repository.addExpense(newExpense)
+                Log.d(TAG, "Successfully added expense: $newExpense")
+
+                // Reload the expenses after adding a new one
+                loadExpenses(trackerId = 1)
+
+            }catch (e: Exception) {
+                Log.e(TAG, "An error occurred while adding an expense", e)
+            }
+        }
+
     }
 
     fun loadExpenses(trackerId: Int) {

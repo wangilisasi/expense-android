@@ -2,6 +2,7 @@ package com.example.expensemanager.data
 
 import com.example.expensemanager.api.ExpenseApiService
 import com.example.expensemanager.models.Expense
+import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTracker
 import javax.inject.Inject
 
@@ -15,8 +16,8 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
         return apiService.getExpensesForTracker(trackerId)
     }
 
-    suspend fun addExpense(expense: Expense) {
-        apiService.addExpense(expense)
+    suspend fun addExpense(expenseRequest: ExpenseRequest) {
+        apiService.addExpense(expenseRequest)
     }
 
     // ... other functions like deleteExpense, etc.

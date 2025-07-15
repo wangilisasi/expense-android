@@ -1,6 +1,7 @@
 package com.example.expensemanager.api
 
 import com.example.expensemanager.models.Expense
+import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTracker
 
 import retrofit2.Response
@@ -23,7 +24,7 @@ interface ExpenseApiService {
     ): List<Expense>
 
     @POST("expenses")
-    suspend fun addExpense(@Body expense: Expense): Response<Expense> // Or some other success response
+    suspend fun addExpense(@Body expenseRequest: ExpenseRequest): Response<Expense> // Or some other success response
 
     @DELETE("expenses/{id}")
     suspend fun deleteExpense(@Path("id") expenseId: String): Response<Unit>

@@ -33,9 +33,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "11"
+
+
     }
     buildFeatures {
         compose = true
@@ -78,5 +81,7 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
 
+    //disugraing
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4") // Or the latest version
 
 }
