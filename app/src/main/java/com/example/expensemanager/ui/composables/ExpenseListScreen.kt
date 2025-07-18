@@ -24,9 +24,8 @@ import com.example.expensemanager.ui.ExpenseListViewModel
 @Composable
 fun ExpenseListScreen(
     modifier: Modifier = Modifier,
-    viewModel: ExpenseListViewModel = hiltViewModel()
 ) {
-
+    val viewModel: ExpenseListViewModel = hiltViewModel()
     // Collect the single state object
     val uiState by viewModel.uiState.collectAsState()
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
