@@ -1,15 +1,14 @@
-package com.example.expensemanager.ui.composables
+package com.example.expensemanager.ui.screens
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.expensemanager.ui.ExpenseListViewModel
+import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 import java.time.LocalDate
 
 @Composable

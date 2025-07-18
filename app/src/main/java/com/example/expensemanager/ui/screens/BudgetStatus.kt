@@ -1,4 +1,4 @@
-package com.example.expensemanager.ui.composables
+package com.example.expensemanager.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.expensemanager.ui.ExpenseListViewModel
+import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 
 // --- Grid Dimensions ---
 private const val NUM_ROWS = 6
@@ -40,7 +40,7 @@ private val budgetDetails = listOf(
 @Composable
 fun BudgetStatus(
     modifier: Modifier = Modifier,
-    viewModel: ExpenseListViewModel= hiltViewModel()
+    viewModel: ExpenseListViewModel = hiltViewModel()
 ) {
     Card(
         modifier = modifier

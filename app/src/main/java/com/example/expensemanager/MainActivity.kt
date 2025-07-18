@@ -3,18 +3,10 @@ package com.example.expensemanager
 import android.os.Bundle
 import androidx.compose.runtime.getValue
 import androidx.navigation.NavDestination.Companion.hierarchy
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -22,9 +14,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -32,15 +22,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.expensemanager.navigation.Screen
-import com.example.expensemanager.ui.composables.ExpenseInputForm
-import com.example.expensemanager.ui.composables.ExpenseListScreen
-import com.example.expensemanager.ui.ExpenseListViewModel
-import com.example.expensemanager.ui.composables.BudgetStatus
-import com.example.expensemanager.ui.composables.HomeScreen
+import com.example.expensemanager.ui.screens.ExpenseListScreen
+import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
+import com.example.expensemanager.ui.screens.HomeScreen
 import com.example.expensemanager.ui.theme.ExpenseManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
-import java.time.LocalDate
-import kotlin.text.toDoubleOrNull
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {

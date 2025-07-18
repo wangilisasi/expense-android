@@ -1,4 +1,4 @@
-package com.example.expensemanager.ui.composables
+package com.example.expensemanager.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.expensemanager.models.Expense
-import com.example.expensemanager.ui.ExpenseListViewModel
+import com.example.expensemanager.models.ExpenseResponse
+import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 
 @Composable
 fun ExpenseListScreen(
@@ -47,7 +47,7 @@ fun ExpenseListScreen(
 
 
 @Composable
-fun ExpenseListItem(expense: Expense) {
+fun ExpenseListItem(expense: ExpenseResponse) {
     Card(
         modifier = Modifier
             .fillMaxWidth()

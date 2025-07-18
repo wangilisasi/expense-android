@@ -1,12 +1,9 @@
 package com.example.expensemanager.models
 
 
-import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
-import java.time.LocalDate
-import java.util.UUID
 
-data class ExpenseTracker(
+data class ExpenseTrackerResponse(
     @SerializedName("id")
     val id: Int,
     @SerializedName("name")
@@ -20,7 +17,7 @@ data class ExpenseTracker(
     @SerializedName("budget")
     val budget: Double,
     @SerializedName("expenses")
-    val expenses: List<Expense> // List of the nested expense objects
+    val expenses: List<ExpenseResponse> // List of the nested expense objects
 )
 
 // Represents the 'ExpenseTracker' table

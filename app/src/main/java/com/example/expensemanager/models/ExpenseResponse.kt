@@ -1,11 +1,10 @@
 package com.example.expensemanager.models
 
 import com.google.gson.annotations.SerializedName
-import java.time.LocalDate
 
 // Represents a single expense entry.
 
-data class Expense(
+data class ExpenseResponse(
     @SerializedName("id")
     val id: Int,
     @SerializedName("description")

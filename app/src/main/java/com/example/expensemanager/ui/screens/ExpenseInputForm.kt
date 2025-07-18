@@ -1,4 +1,4 @@
-package com.example.expensemanager.ui.composables
+package com.example.expensemanager.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
