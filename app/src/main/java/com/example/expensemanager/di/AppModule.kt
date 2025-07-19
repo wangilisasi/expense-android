@@ -1,5 +1,6 @@
 package com.example.expensemanager.di
 
+import com.example.expensemanager.api.AuthApiService
 import com.example.expensemanager.api.AuthInterceptor
 import com.example.expensemanager.api.ExpenseApiService
 import com.example.expensemanager.local.TokenManager
@@ -51,6 +52,12 @@ object AppModule {
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuthApiService(retrofit: Retrofit): AuthApiService {
+        return retrofit.create(AuthApiService::class.java)
     }
 
     @Provides
