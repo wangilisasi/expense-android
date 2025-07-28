@@ -16,7 +16,7 @@ class AuthRepository @Inject constructor(
     private val tokenManager: TokenManager
 ) {
 
-    suspend fun login(username: String, password: String):Result<LoginResponse> {
+    suspend fun login(username: String, password: String): Result<LoginResponse> {
         return try {
             val response = authApiService.login(username, password)
             if (response.isSuccessful && response.body() != null) {
@@ -35,7 +35,7 @@ class AuthRepository @Inject constructor(
         return try {
             val response = authApiService.register(registerRequest)
             if (response.isSuccessful && response.body() != null) {
-              val registerResponse = response.body()!!
+                val registerResponse = response.body()!!
                 Result.success(registerResponse)
             } else {
                 Result.failure(Exception("Registration failed: ${response.errorBody()?.string()}"))

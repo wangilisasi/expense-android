@@ -89,4 +89,8 @@ dependencies {
 
     //Datastore
     implementation("androidx.datastore:datastore-preferences:1.1.7")
+
+    //JWT decoder
+    // build.gradle.kts
+    implementation("com.auth0.android:jwtdecode:2.0.2")
 }

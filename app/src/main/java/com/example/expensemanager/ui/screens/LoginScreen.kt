@@ -11,15 +11,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
+import com.example.expensemanager.utils.Screen
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
-    onNavigateToRegister: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel()
+    navController: NavController,
+    viewModel: AuthViewModel = hiltViewModel(),
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -27,18 +28,13 @@ fun LoginScreen(
     val errorEvent by viewModel.errorEvents.collectAsState()
     val authState by viewModel.authState.collectAsState()
 
-    LaunchedEffect(authState) {
-        if (authState is AuthState.Authenticated) {
-            onLoginSuccess()
-        }
-    }
 
-    LaunchedEffect(errorEvent) {
-        errorEvent?.let {
-            // Show a Snackbar or Toast for the error
-            // For simplicity, we'll just log it here
-            println("Login Error: $it")
-            viewModel.consumeErrorEvent() // Reset the error event
+    // Navigate to Home when authenticated
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Authenticated) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Login.route) { inclusive = true }
+            }
         }
     }
 
@@ -86,7 +82,7 @@ fun LoginScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = onNavigateToRegister) {
+            TextButton(onClick = { navController.navigate(Screen.Register.route) }) {
                 Text("Don't have an account? Register")
             }
 

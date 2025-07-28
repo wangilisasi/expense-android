@@ -1,5 +1,6 @@
 package com.example.expensemanager.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -8,37 +9,40 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.example.expensemanager.models.RegisterRequest
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
+import com.example.expensemanager.utils.Screen
+
+
 import kotlin.text.contains
 
 @Composable
 fun RegisterScreen(
-    onRegistrationSuccessNavigation: () -> Unit, // e.g., navigate to login
-    onNavigateToLogin: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel()
+    navController: NavController,
+    viewModel: AuthViewModel= hiltViewModel()
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    val registrationInProgress by viewModel.registrationInProgress.collectAsState()
+
     val errorEvent by viewModel.errorEvents.collectAsState()
+    val complete by viewModel.registrationComplete.collectAsState()
+    val registrationInProgress by viewModel.registrationInProgress.collectAsState()
 
-    // You might want to observe a specific state for registration success
-    // For now, we'll rely on the errorEvent or a navigation callback.
 
-    LaunchedEffect(errorEvent) {
-        errorEvent?.let {
-            if (it.contains("Registration successful", ignoreCase = true)) {
-                // You could navigate directly or show a success message before navigating
-                onRegistrationSuccessNavigation()
+
+    // Navigate back to Login when registration succeeds
+    LaunchedEffect(complete) {
+        if (complete) {
+            viewModel.clearRegistrationFlag()
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Register.route) { inclusive = true }
             }
-            // Show a Snackbar or Toast for the error/success
-            println("Registration Event: $it")
-            viewModel.consumeErrorEvent() // Reset the event
         }
     }
 
@@ -98,7 +102,7 @@ fun RegisterScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = onNavigateToLogin) {
+            TextButton(onClick = {navController.navigate(Screen.Login.route)}) {
                 Text("Already have an account? Login")
             }
 

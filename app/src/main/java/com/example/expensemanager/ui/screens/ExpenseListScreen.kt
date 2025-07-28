@@ -18,14 +18,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 
 @Composable
 fun ExpenseListScreen(
+    navController: NavController,
     modifier: Modifier = Modifier,
+    viewModel: ExpenseListViewModel = hiltViewModel()
 ) {
-    val viewModel: ExpenseListViewModel = hiltViewModel()
+
     // Collect the single state object
     val uiState by viewModel.uiState.collectAsState()
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

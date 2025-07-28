@@ -6,75 +6,144 @@ import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
+import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val TAG = "ExpenseListViewModel"
 
-// The ViewModel will be injected with the Repository
+
+
 @HiltViewModel
 class ExpenseListViewModel @Inject constructor(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    // tokenManager removed as it was unused
 ) : ViewModel() {
-    // --- A single StateFlow for the entire UI state ---
+
+
+
     private val _uiState = MutableStateFlow(ExpenseListUiState())
     val uiState: StateFlow<ExpenseListUiState> = _uiState
 
+    private val _statsUiState = MutableStateFlow(TrackerStatsUiState())
+    val statsUiState: StateFlow<TrackerStatsUiState> = _statsUiState
+
     init {
-        // If you get it from navigation, you'll need a slightly different approach.
-        loadExpenses(trackerId = 1)
+        loadExpenses()
+        loadStats()
     }
 
+    // ✅ Helper function to avoid repeating logic
+    private suspend fun getCurrentTrackerId(): Int? {
+        return try {
+            repository.getTrackers().firstOrNull()?.id
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get trackers", e)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = "Could not retrieve user tracker."
+                )
+            }
+            null
+        }
+    }
 
     fun addExpense(description: String, amount: Double, date: String) {
         viewModelScope.launch {
             try {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                val trackerId = getCurrentTrackerId()
+                if (trackerId == null) {
+                    //TODO: Navigate user to setup screen
+                    return@launch
+                }
+
                 val newExpense = ExpenseRequest(
-                    // id = 0, // Or whatever your Expense model expects for a new item
-                    trackerId=1, // Link to the current tracker
+                    trackerId = trackerId,
                     description = description,
                     amount = amount,
-                    date = date // Assuming date is already a pre-formatted String
+                    date = date
                 )
 
                 repository.addExpense(newExpense)
-                Log.d(TAG, "Successfully added expense: $newExpense")
+                // On success, send the navigation event
+                _uiState.update { it.copy(isLoading = false) }
 
-                // Reload the expenses after adding a new one
-                loadExpenses(trackerId = 1)
 
-            }catch (e: Exception) {
+                // Reload expenses to show the new one
+                loadExpenses()
+
+            } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
+                // ✅ Notify the UI of the failure
+                _uiState.update { it.copy(error = "Failed to add expense.") }
+                // On failure, send an error event
+
             }
         }
-
     }
 
-    fun loadExpenses(trackerId: Int) {
+
+    fun loadStats() {
         viewModelScope.launch {
-            // Update the state using .copy() to ensure atomicity
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            Log.d(TAG, "UI State updated: isLoading = true, error = null")
+            _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
-                val loadedExpenses = repository.getExpenses(trackerId)
-                Log.d(TAG, "Successfully loaded ${loadedExpenses.size} expenses for trackerId: $trackerId")
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    expenses = loadedExpenses
-                )
-                Log.d(TAG, "UI State updated: isLoading = false, ${loadedExpenses.size} expenses loaded.")
+                val trackerId = getCurrentTrackerId()
+                if (trackerId == null) {
+                    _statsUiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Could not retrieve user tracker."
+                        )
+                    }
+                    return@launch
+                }
+                val stats = repository.getStats(trackerId)
+                _statsUiState.update {
+                    it.copy(isLoading = false, trackerStats = stats)
+                }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "Failed to load expenses."
-                )
-                Log.d(TAG, "UI State updated: isLoading = false, error message set.")
+                _statsUiState.update {
+                    it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load stats.")
+                }
+            }
+        }
+    }
+
+    fun loadExpenses() {
+        viewModelScope.launch {
+            // Using .update is a concise way to modify StateFlow
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            try {
+                // ✅ Use the new helper function
+                val trackerId = getCurrentTrackerId()
+                if (trackerId == null) {
+                    _uiState.update {
+                        it.copy(isLoading = false, error = "Could not retrieve user tracker.")
+                    }
+                    return@launch
+                }
+
+                val loadedExpenses = repository.getExpenses(trackerId)
+                _uiState.update {
+                    it.copy(isLoading = false, expenses = loadedExpenses)
+                }
+                Log.d(TAG, "Successfully loaded ${loadedExpenses.size} expenses.")
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    // ✅ Provide a more specific error message from the exception if possible
+                    it.copy(isLoading = false, error = e.message ?: "Failed to load expenses.")
+                }
                 Log.e(TAG, "An error occurred while loading expenses", e)
-            } finally {
-             // Put some code here
             }
         }
     }
