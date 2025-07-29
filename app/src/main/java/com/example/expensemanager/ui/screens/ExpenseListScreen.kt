@@ -10,7 +10,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,27 +21,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseListScreen(
-    navController: NavController,
     modifier: Modifier = Modifier,
     viewModel: ExpenseListViewModel = hiltViewModel()
 ) {
 
     // Collect the single state object
     val uiState by viewModel.uiState.collectAsState()
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // Now access properties from the state object
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("Expense List") },
+                actions = {
+                    ThreeDotMenu(onLogoutClick = { /* Handle logout */ })
+                }
+            )
+        }
+    ) { innerPadding ->
         if (uiState.isLoading) {
             CircularProgressIndicator()
         } else if (uiState.error != null) {
             Text(text = uiState.error!!)
         } else {
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 items(uiState.expenses) { expense ->
                     ExpenseListItem(expense = expense)
                 }

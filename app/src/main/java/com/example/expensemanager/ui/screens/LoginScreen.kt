@@ -19,8 +19,8 @@ import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun LoginScreen(
-    navController: NavController,
     viewModel: AuthViewModel = hiltViewModel(),
+    onNavigateToRegister: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -28,15 +28,6 @@ fun LoginScreen(
     val errorEvent by viewModel.errorEvents.collectAsState()
     val authState by viewModel.authState.collectAsState()
 
-
-    // Navigate to Home when authenticated
-    LaunchedEffect(authState) {
-        if (authState == AuthState.Authenticated) {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Login.route) { inclusive = true }
-            }
-        }
-    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -82,7 +73,7 @@ fun LoginScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = { navController.navigate(Screen.Register.route) }) {
+            TextButton(onClick = onNavigateToRegister ) {
                 Text("Don't have an account? Register")
             }
 

@@ -28,35 +28,24 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    navController: NavController,
     modifier: Modifier = Modifier,
-    authViewModel: AuthViewModel= hiltViewModel(),
     expenseViewModel: ExpenseListViewModel= hiltViewModel(),
-) //Callback when logout is clickedL
+    onLogout: () -> Unit,
+)
 {
 
-
-    val authstate by authViewModel.authState.collectAsState()
     val uiState by expenseViewModel.uiState.collectAsState()
-
-    LaunchedEffect(authstate){
-        if (authstate is AuthState.Unauthenticated){
-            navController.navigate(Screen.Login.route)
-        }
-    }
-
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Home") },
                 actions = {
-                    ThreeDotMenu(onLogoutClick = { authViewModel.logout() })
+                    ThreeDotMenu(onLogoutClick = onLogout)
                 }
             )
         }
     ){innerPadding ->
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

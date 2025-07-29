@@ -23,8 +23,8 @@ import kotlin.text.contains
 
 @Composable
 fun RegisterScreen(
-    navController: NavController,
-    viewModel: AuthViewModel= hiltViewModel()
+    viewModel: AuthViewModel= hiltViewModel(),
+    onNavigateToLogin: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -35,17 +35,13 @@ fun RegisterScreen(
     val registrationInProgress by viewModel.registrationInProgress.collectAsState()
 
 
-
-    // Navigate back to Login when registration succeeds
+    // Navigate to login when register is complete
     LaunchedEffect(complete) {
         if (complete) {
+            onNavigateToLogin()
             viewModel.clearRegistrationFlag()
-            navController.navigate(Screen.Login.route) {
-                popUpTo(Screen.Register.route) { inclusive = true }
-            }
         }
     }
-
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -102,7 +98,7 @@ fun RegisterScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = {navController.navigate(Screen.Login.route)}) {
+            TextButton(onClick = onNavigateToLogin) {
                 Text("Already have an account? Login")
             }
 
