@@ -34,7 +34,6 @@ class ExpenseListViewModel @Inject constructor(
 ) : ViewModel() {
 
 
-
     private val _uiState = MutableStateFlow(ExpenseListUiState())
     val uiState: StateFlow<ExpenseListUiState> = _uiState
 
@@ -71,7 +70,7 @@ class ExpenseListViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 val trackerId = getCurrentTrackerId()
                 if (trackerId == null) {
-                  //Navigate to Budget Setup
+                    //Navigate to Budget Setup
                     _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
                     _uiState.update { it.copy(isLoading = false) }
                     return@launch
@@ -126,11 +125,11 @@ class ExpenseListViewModel @Inject constructor(
         }
     }
 
-    fun createBudget(name: String, budget: Double,startDate: String, endDate: String){
+    fun createBudget(name: String, budget: Double, startDate: String, endDate: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
-                val expenseTrackerRequest= ExpenseTrackerRequest(
+                val expenseTrackerRequest = ExpenseTrackerRequest(
                     name = name,
                     budget = budget,
                     description = "My Good Budget",
@@ -145,7 +144,7 @@ class ExpenseListViewModel @Inject constructor(
                 loadExpenses()
                 loadStats()
 
-            }catch (e: Exception){
+            } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
                 // ✅ Notify the UI of the failure
                 _uiState.update { it.copy(error = "Failed to add expense.") }
@@ -181,6 +180,31 @@ class ExpenseListViewModel @Inject constructor(
                     it.copy(isLoading = false, error = e.message ?: "Failed to load expenses.")
                 }
                 Log.e(TAG, "An error occurred while loading expenses", e)
+            }
+        }
+    }
+
+    fun deleteExpense(expenseId: Int) {
+        viewModelScope.launch {
+            try {
+                _uiState.update {
+                    it.copy(isLoading = true, error = null)
+                }
+                repository.deleteExpense(expenseId)
+                _uiState.update {
+                    it.copy(isLoading = false)
+                }
+                // Update local list of expenses to show the new one
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        expenses = currentState.expenses.filterNot { it.id == expenseId }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete expense", e)
+                _uiState.update {
+                    it.copy(isLoading = false, error = "Failed to delete expense.")
+                }
             }
         }
     }

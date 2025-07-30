@@ -32,5 +32,10 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
         apiService.addExpense(expenseRequest)
     }
 
+    suspend fun deleteExpense(expenseId: Int) {
+        apiService.deleteExpense(expenseId)
+    }
+
+
     // ... other functions like deleteExpense, etc.
 }

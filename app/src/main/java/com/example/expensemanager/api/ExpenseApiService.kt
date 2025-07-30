@@ -39,5 +39,5 @@ interface ExpenseApiService {
     suspend fun addExpense(@Body expenseRequest: ExpenseRequest): Response<ExpenseResponse> // Or some other success response
 
     @DELETE("expenses/{id}")
-    suspend fun deleteExpense(@Path("id") expenseId: String): Response<Unit>
+    suspend fun deleteExpense(@Path("id") expenseId: Int): Response<Unit>
 }
