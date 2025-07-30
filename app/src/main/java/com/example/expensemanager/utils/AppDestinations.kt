@@ -15,6 +15,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     // Screens for MainActivity (Bottom Nav)
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Reports : Screen("expenses", "Expenses", Icons.Default.Info)
+
+    object BudgetSetup : Screen("budget_setup", "Budget Setup", Icons.Default.Info)
 }
 
 object NavRoutes {

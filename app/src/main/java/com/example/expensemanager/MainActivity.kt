@@ -21,7 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.expensemanager.ui.screens.BudgetSetupScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
+import com.example.expensemanager.ui.viewmodels.ExpenseListNavigationEvent
+import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -33,12 +36,27 @@ class MainActivity : ComponentActivity() {
 
                 // Observe AuthState so we can force‐logout back to AuthActivity
                 val authViewModel: AuthViewModel = hiltViewModel()
+                val expenseListViewModel: ExpenseListViewModel = hiltViewModel()
                 val authState by authViewModel.authState.collectAsState()
+                val navigationEvents by expenseListViewModel.navigationEvents.collectAsState(null)
                 val ctx = LocalContext.current
                 LaunchedEffect(authState) {
                     if (authState == AuthState.Unauthenticated) {
                         ctx.startActivity(Intent(ctx, AuthActivity::class.java))
                         finish()
+                    }
+                }
+                LaunchedEffect(navigationEvents) {
+                    when (navigationEvents) {
+                        is ExpenseListNavigationEvent.NavigateToBudgetSetup -> {
+                            navController.navigate(Screen.BudgetSetup.route)
+                        }
+                        is ExpenseListNavigationEvent.NavigateToHome -> {
+                            navController.navigate(Screen.Home.route)
+                        }
+                        else->{
+                            // Handle other navigation events if needed
+                        }
                     }
                 }
 
@@ -84,6 +102,13 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(Screen.Reports.route) {
                             ExpenseListScreen()
+                        }
+                        composable(Screen.BudgetSetup.route) {
+                            BudgetSetupScreen(
+                                onFormSubmit = {budgetName, amount, startDate, endDate ->
+                                    expenseListViewModel.createBudget(budgetName,amount.toDoubleOrNull()?:0.0,startDate,endDate)
+                                }
+                            )
                         }
                     }
                 }

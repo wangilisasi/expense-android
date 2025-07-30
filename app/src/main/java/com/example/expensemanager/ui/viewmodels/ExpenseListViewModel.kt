@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.models.ExpenseRequest
+import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,12 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val TAG = "ExpenseListViewModel"
+
+sealed class ExpenseListNavigationEvent {
+    object NavigateToBudgetSetup : ExpenseListNavigationEvent()
+    object NavigateToHome : ExpenseListNavigationEvent()
+
+}
 
 
 
@@ -33,6 +40,9 @@ class ExpenseListViewModel @Inject constructor(
 
     private val _statsUiState = MutableStateFlow(TrackerStatsUiState())
     val statsUiState: StateFlow<TrackerStatsUiState> = _statsUiState
+
+    private val _navigationEvents = MutableSharedFlow<ExpenseListNavigationEvent>()
+    val navigationEvents = _navigationEvents.asSharedFlow()
 
     init {
         loadExpenses()
@@ -61,7 +71,9 @@ class ExpenseListViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 val trackerId = getCurrentTrackerId()
                 if (trackerId == null) {
-                    //TODO: Navigate user to setup screen
+                  //Navigate to Budget Setup
+                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
+                    _uiState.update { it.copy(isLoading = false) }
                     return@launch
                 }
 
@@ -97,12 +109,9 @@ class ExpenseListViewModel @Inject constructor(
             try {
                 val trackerId = getCurrentTrackerId()
                 if (trackerId == null) {
-                    _statsUiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Could not retrieve user tracker."
-                        )
-                    }
+                    //Navigate to Budget Setup
+                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
+                    _uiState.update { it.copy(isLoading = false) }
                     return@launch
                 }
                 val stats = repository.getStats(trackerId)
@@ -117,6 +126,34 @@ class ExpenseListViewModel @Inject constructor(
         }
     }
 
+    fun createBudget(name: String, budget: Double,startDate: String, endDate: String){
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                val expenseTrackerRequest= ExpenseTrackerRequest(
+                    name = name,
+                    budget = budget,
+                    description = "My Good Budget",
+                    startDate = startDate,
+                    endDate = endDate
+                )
+                repository.createTracker(expenseTrackerRequest)
+                // On success, send the navigation event
+                _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToHome)
+                _uiState.update { it.copy(isLoading = false) }
+                // Reload expenses to show the new one
+                loadExpenses()
+                loadStats()
+
+            }catch (e: Exception){
+                Log.e(TAG, "An error occurred while adding an expense", e)
+                // ✅ Notify the UI of the failure
+                _uiState.update { it.copy(error = "Failed to add expense.") }
+                // On failure, send an error event
+            }
+        }
+    }
+
     fun loadExpenses() {
         viewModelScope.launch {
             // Using .update is a concise way to modify StateFlow
@@ -126,9 +163,9 @@ class ExpenseListViewModel @Inject constructor(
                 // ✅ Use the new helper function
                 val trackerId = getCurrentTrackerId()
                 if (trackerId == null) {
-                    _uiState.update {
-                        it.copy(isLoading = false, error = "Could not retrieve user tracker.")
-                    }
+                    //Navigate to Budget Setup
+                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
+                    _uiState.update { it.copy(isLoading = false) }
                     return@launch
                 }
 
