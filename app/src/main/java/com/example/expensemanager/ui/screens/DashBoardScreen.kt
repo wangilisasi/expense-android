@@ -28,25 +28,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import com.example.expensemanager.models.ExpenseResponse
+import com.example.expensemanager.navigation.Screen
+import com.example.expensemanager.ui.viewmodels.AuthState
+import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
-import kotlinx.coroutines.flow.filter
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpenseListScreen(
+fun DashBoardScreen(
     modifier: Modifier = Modifier,
-    viewModel: ExpenseListViewModel = hiltViewModel()
+    expenseViewModel: ExpenseListViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
+    rootNavController: NavHostController
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by expenseViewModel.uiState.collectAsState()
+    val authState by authViewModel.authState.collectAsState()
+
+    // Observe auth state changes and navigate when user becomes unauthenticated
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Unauthenticated) {
+            rootNavController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Main.route) {
+                    inclusive = true // remove Main from the back stack
+                }
+                launchSingleTop = true
+            }
+        }
+    }
+
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -54,7 +72,9 @@ fun ExpenseListScreen(
             TopAppBar(
                 title = { Text("Expense List") },
                 actions = {
-                    // ThreeDotMenu(onLogoutClick = { /* Handle logout */ })
+                    ThreeDotMenu(onLogoutClick = {
+                        authViewModel.logout()
+                    })
                 }
             )
         }
@@ -62,32 +82,39 @@ fun ExpenseListScreen(
         when {
             uiState.isLoading -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
                 }
             }
+
             uiState.error != null -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(text = uiState.error!!)
                 }
             }
+
             else -> {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    reverseLayout = true
                 ) {
                     items(uiState.expenses, key = { it.id }) { expense ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { desiredValue ->
                                 if (desiredValue == SwipeToDismissBoxValue.EndToStart) { // Swiped left
-                                    viewModel.deleteExpense(expense.id)
+                                    expenseViewModel.deleteExpense(expense.id)
                                     true // Confirm the dismiss
                                 } else {
                                     false // Don't confirm other swipes (e.g., if you only want EndToStart)

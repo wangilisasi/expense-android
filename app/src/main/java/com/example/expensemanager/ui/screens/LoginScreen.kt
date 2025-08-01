@@ -11,22 +11,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
-import com.example.expensemanager.utils.Screen
-import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel(),
-    onNavigateToRegister: () -> Unit
+    onNavigateToRegister: () -> Unit,
+    onLoginSuccess: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val loginInProgress by viewModel.loginInProgress.collectAsState()
     val errorEvent by viewModel.errorEvents.collectAsState()
     val authState by viewModel.authState.collectAsState()
+
+
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Authenticated) {
+            onLoginSuccess()
+        }
+    }
 
 
     Surface(modifier = Modifier.fillMaxSize()) {

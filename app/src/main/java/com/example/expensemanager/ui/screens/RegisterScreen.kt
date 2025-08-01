@@ -1,6 +1,5 @@
 package com.example.expensemanager.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -9,37 +8,35 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
 import com.example.expensemanager.models.RegisterRequest
+import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
-import com.example.expensemanager.utils.Screen
 
 
 import kotlin.text.contains
 
 @Composable
 fun RegisterScreen(
-    viewModel: AuthViewModel= hiltViewModel(),
-    onNavigateToLogin: () -> Unit
+    viewModel: AuthViewModel = hiltViewModel(),
+    onNavigateToLogin: () -> Unit,
+    onRegistered: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-
+    val authState by viewModel.authState.collectAsState()
     val errorEvent by viewModel.errorEvents.collectAsState()
-    val complete by viewModel.registrationComplete.collectAsState()
     val registrationInProgress by viewModel.registrationInProgress.collectAsState()
 
 
-    // Navigate to login when register is complete
-    LaunchedEffect(complete) {
-        if (complete) {
-            onNavigateToLogin()
-            viewModel.clearRegistrationFlag()
+
+
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Authenticated) {
+            onRegistered()
         }
     }
 

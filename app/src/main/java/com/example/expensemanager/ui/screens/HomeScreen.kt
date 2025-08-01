@@ -18,34 +18,48 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import com.example.expensemanager.navigation.Screen
 import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
-import com.example.expensemanager.utils.Screen
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    expenseViewModel: ExpenseListViewModel= hiltViewModel(),
-    onLogout: () -> Unit,
-)
-{
-
+    expenseViewModel: ExpenseListViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
+    rootNavController: NavHostController
+) {
     val uiState by expenseViewModel.uiState.collectAsState()
+    val authState by authViewModel.authState.collectAsState()
+
+    // Observe auth state changes and navigate when user becomes unauthenticated
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Unauthenticated) {
+            rootNavController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Main.route) {
+                    inclusive = true // remove Main from the back stack
+                }
+                launchSingleTop = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Home") },
                 actions = {
-                    ThreeDotMenu(onLogoutClick = onLogout)
+                    ThreeDotMenu(onLogoutClick = {
+                        authViewModel.logout()
+                    })
                 }
             )
         }
-    ){innerPadding ->
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

@@ -38,12 +38,11 @@ class AuthViewModel @Inject constructor(
     private val _registrationInProgress = MutableStateFlow(false)
     val registrationInProgress: StateFlow<Boolean> = _registrationInProgress.asStateFlow()
 
-    private val _registrationComplete = MutableStateFlow(false)
-    val registrationComplete: StateFlow<Boolean> = _registrationComplete.asStateFlow()
+//    private val _registrationComplete = MutableStateFlow(false)
+//    val registrationComplete: StateFlow<Boolean> = _registrationComplete.asStateFlow()
 
     private val _errorEvents = MutableStateFlow<String?>(null)
     val errorEvents: StateFlow<String?> = _errorEvents.asStateFlow()
-
 
 
     init {
@@ -92,9 +91,7 @@ class AuthViewModel @Inject constructor(
             _errorEvents.value = null
             val result = authRepository.register(registerRequest)
             result.onSuccess { registerResponse ->
-                // Decide what to do after successful registration
-                // e.g., navigate to login, or attempt auto-login
-                _registrationComplete.value = true
+                _authState.value = AuthState.Authenticated
                 _errorEvents.value =
                     "Registration successful for ${registerResponse.username}! Please login." // Or handle navigation
 
@@ -112,9 +109,9 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-
-
-    fun clearRegistrationFlag() {
-        _registrationComplete.value = false
+    // Deal with error events
+    fun clearError() {
+        _errorEvents.value = null
     }
+
 }
