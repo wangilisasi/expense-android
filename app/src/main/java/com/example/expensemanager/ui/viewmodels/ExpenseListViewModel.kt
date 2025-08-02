@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTrackerRequest
+import com.example.expensemanager.models.ExpenseTrackerResponse
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,33 +43,70 @@ class ExpenseListViewModel @Inject constructor(
 
     private val _navigationEvents = MutableSharedFlow<ExpenseListNavigationEvent>()
     val navigationEvents = _navigationEvents.asSharedFlow()
+    private var currentTracker: ExpenseTrackerResponse? = null
 
     init {
+        getCurrentTracker()
         loadExpenses()
         loadStats()
     }
 
-    // ✅ Helper function to avoid repeating logic
-    private suspend fun getCurrentTrackerId(): Int? {
-        return try {
-            repository.getTrackers().firstOrNull()?.id
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get trackers", e)
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    error = "Could not retrieve user tracker."
-                )
+
+    private fun getCurrentTracker() {
+        viewModelScope.launch {
+            try {
+                // Assuming getTrackers() returns a list and you're interested in the first one
+                val tracker = repository.getTrackers().firstOrNull() // Or however you get the specific tracker
+                currentTracker = tracker
+                // Optionally update UI state if needed
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load current tracker details", e)
+                // Handle error, maybe update UI state
             }
-            null
         }
     }
+
+
+
+    fun updateTracker(name: String, budget: Double, startDate: String, endDate: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                val trackerId = currentTracker?.id
+                if (trackerId == null) {
+                    //Navigate to Budget Setup
+                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
+                    _uiState.update { it.copy(isLoading = false) }
+                    return@launch
+                }
+                val expenseTrackerRequest = ExpenseTrackerRequest(
+                    name = name,
+                    budget = budget,
+                    description = "My Good Budget",
+                    startDate = startDate,
+                    endDate = endDate
+                )
+
+                val response = repository.updateTracker(trackerId, expenseTrackerRequest)
+                currentTracker = response.body()
+                _uiState.update { it.copy(isLoading = false) }
+                // Reload expenses to show the new one
+                loadExpenses()
+                loadStats()
+
+            }catch (e: Exception) {
+                Log.e(TAG, "Failed to load current tracker details", e)
+                // Handle error, maybe update UI state
+            }
+        }
+    }
+
 
     fun addExpense(description: String, amount: Double, date: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
-                val trackerId = getCurrentTrackerId()
+                val trackerId = currentTracker?.id
                 if (trackerId == null) {
                     //Navigate to Budget Setup
                     _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
@@ -106,7 +144,7 @@ class ExpenseListViewModel @Inject constructor(
         viewModelScope.launch {
             _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
-                val trackerId = getCurrentTrackerId()
+                val trackerId = currentTracker?.id
                 if (trackerId == null) {
                     //Navigate to Budget Setup
                     _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
@@ -160,7 +198,7 @@ class ExpenseListViewModel @Inject constructor(
 
             try {
                 // ✅ Use the new helper function
-                val trackerId = getCurrentTrackerId()
+                val trackerId = currentTracker?.id
                 if (trackerId == null) {
                     //Navigate to Budget Setup
                     _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)

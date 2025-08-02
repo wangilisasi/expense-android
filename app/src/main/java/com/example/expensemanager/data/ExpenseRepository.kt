@@ -36,6 +36,11 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
         apiService.deleteExpense(expenseId)
     }
 
+    suspend fun updateTracker(trackerId: Int, expenseTrackerRequest: ExpenseTrackerRequest): Response<ExpenseTrackerResponse> {
+        return apiService.updateTracker(trackerId, expenseTrackerRequest)
+    }
+
+
 
     // ... other functions like deleteExpense, etc.
 }

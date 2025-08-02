@@ -40,4 +40,12 @@ interface ExpenseApiService {
 
     @DELETE("expenses/{id}")
     suspend fun deleteExpense(@Path("id") expenseId: Int): Response<Unit>
+
+    @PATCH("trackers/{id}")
+    suspend fun updateTracker(
+        @Path("id") trackerId: Int,
+        @Body expenseTrackerRequest: ExpenseTrackerRequest
+    ): Response<ExpenseTrackerResponse>
+
+
 }
