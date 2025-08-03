@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.expensemanager.navigation.BottomNavItem
@@ -28,6 +29,7 @@ import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 @Composable
 fun MainScreen(rootNavController: NavHostController) {
     val mainScreenNavController = rememberNavController()
+    val expenseListViewModel: ExpenseListViewModel = hiltViewModel()
 
     Scaffold(
         bottomBar = { BottomBar(mainScreenNavController) }
@@ -48,6 +50,13 @@ fun MainScreen(rootNavController: NavHostController) {
                     rootNavController = rootNavController,
                 )
             }
+            composable(BottomNavItem.BudgetSetup.route) {
+                BudgetSetupScreen(
+                    onFormSubmit = { name, budget, startDate, endDate ->
+                        expenseListViewModel.updateTracker(name, budget.toDouble(), startDate, endDate)
+                    }
+                )
+            }
         }
     }
 }
@@ -55,7 +64,7 @@ fun MainScreen(rootNavController: NavHostController) {
 
 @Composable
 fun BottomBar(navController: NavHostController) {
-    val items = listOf(BottomNavItem.Home, BottomNavItem.Reports)
+    val items = listOf(BottomNavItem.Home,BottomNavItem.BudgetSetup, BottomNavItem.Reports)
     // Use NavigationBar instead of BottomNavigation
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -66,7 +75,7 @@ fun BottomBar(navController: NavHostController) {
             NavigationBarItem(
                 icon = {
                     Icon(
-                        Icons.Filled.Home,
+                        item.icon,
                         contentDescription = item.title
                     )
                 }, // Example icon, replace as needed

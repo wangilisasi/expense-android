@@ -15,10 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import java.util.Calendar
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetSetupScreen(
     onFormSubmit: (name: String, budget: String, startDate: String, endDate: String) -> Unit
@@ -31,14 +34,27 @@ fun BudgetSetupScreen(
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
     val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val authViewModel: AuthViewModel = hiltViewModel()
 
-    Column(
-        modifier = Modifier
-            .padding(16.dp)
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Budget Setup") },
+                actions = {
+                    ThreeDotMenu(onLogoutClick = {
+                        authViewModel.logout()
+                    })
+                }
+            )
+        }
+    ){innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
         OutlinedTextField(
             value = budgetName,
             onValueChange = { budgetName = it },
@@ -103,32 +119,35 @@ fun BudgetSetupScreen(
         ) {
             Text("Add Expense")
         }
-    }
-    if (showStartDatePicker) {
-        MyDatePickerDialog(
-            onDateSelected = { selectedDateMillis ->
-                val calendar = Calendar.getInstance().apply {
-                    timeInMillis = selectedDateMillis
-                }
-                startDate = dateFormatter.format(calendar.time)
-                showStartDatePicker = false
-            },
-            onDismiss = { showStartDatePicker = false }
-        )
+
+        }
+        if (showStartDatePicker) {
+            MyDatePickerDialog(
+                onDateSelected = { selectedDateMillis ->
+                    val calendar = Calendar.getInstance().apply {
+                        timeInMillis = selectedDateMillis
+                    }
+                    startDate = dateFormatter.format(calendar.time)
+                    showStartDatePicker = false
+                },
+                onDismiss = { showStartDatePicker = false }
+            )
+        }
+
+        if (showEndDatePicker) {
+            MyDatePickerDialog(
+                onDateSelected = { selectedDateMillis ->
+                    val calendar = Calendar.getInstance().apply {
+                        timeInMillis = selectedDateMillis
+                    }
+                    endDate = dateFormatter.format(calendar.time)
+                    showEndDatePicker = false
+                },
+                onDismiss = { showEndDatePicker = false }
+            )
+        }
     }
 
-    if (showEndDatePicker) {
-        MyDatePickerDialog(
-            onDateSelected = { selectedDateMillis ->
-                val calendar = Calendar.getInstance().apply {
-                    timeInMillis = selectedDateMillis
-                }
-                endDate = dateFormatter.format(calendar.time)
-                showEndDatePicker = false
-            },
-            onDismiss = { showEndDatePicker = false }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -47,21 +47,26 @@ class ExpenseListViewModel @Inject constructor(
 
     init {
         getCurrentTracker()
-        loadExpenses()
-        loadStats()
+
     }
 
 
     private fun getCurrentTracker() {
         viewModelScope.launch {
             try {
+                _uiState.update { it.copy(isLoading = true, error = null) }
+                _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
                 // Assuming getTrackers() returns a list and you're interested in the first one
                 val tracker = repository.getTrackers().firstOrNull() // Or however you get the specific tracker
                 currentTracker = tracker
-                // Optionally update UI state if needed
+                _uiState.update { it.copy(isLoading = false) }
+                //Load Expenses and stats after the async op to load the tracker
+                loadExpenses()
+                loadStats()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load current tracker details", e)
                 // Handle error, maybe update UI state
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
