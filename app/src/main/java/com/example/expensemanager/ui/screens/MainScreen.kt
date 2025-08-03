@@ -31,6 +31,9 @@ fun MainScreen(rootNavController: NavHostController) {
     val mainScreenNavController = rememberNavController()
     val expenseListViewModel: ExpenseListViewModel = hiltViewModel()
 
+    val currentTrackerDetails by expenseListViewModel.statsUiState.collectAsState()
+
+
     Scaffold(
         bottomBar = { BottomBar(mainScreenNavController) }
     ) { innerPadding ->
@@ -54,7 +57,11 @@ fun MainScreen(rootNavController: NavHostController) {
                 BudgetSetupScreen(
                     onFormSubmit = { name, budget, startDate, endDate ->
                         expenseListViewModel.updateTracker(name, budget.toDouble(), startDate, endDate)
-                    }
+                    },
+                    initialAmount = currentTrackerDetails.trackerStats?.budget?.toString() ?: "",
+                    initialStartDate = currentTrackerDetails.trackerStats?.startDate ?: "",
+                    initialEndDate = currentTrackerDetails.trackerStats?.endDate ?: ""
+
                 )
             }
         }
