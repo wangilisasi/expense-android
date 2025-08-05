@@ -18,7 +18,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    private const val BASE_URL = "https://web-production-8c12.up.railway.app/"
+    //private const val BASE_URL = "https://web-production-8c12.up.railway.app/"
+    private const val BASE_URL = "https://expense-fastapi.vercel.app/"
 
     @Provides
     @Singleton

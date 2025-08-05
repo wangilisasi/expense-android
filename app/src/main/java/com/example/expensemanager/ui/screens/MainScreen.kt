@@ -32,6 +32,7 @@ fun MainScreen(rootNavController: NavHostController) {
     val expenseListViewModel: ExpenseListViewModel = hiltViewModel()
 
     val currentTrackerDetails by expenseListViewModel.statsUiState.collectAsState()
+    val uiState by expenseListViewModel.uiState.collectAsState()
 
 
     Scaffold(
@@ -60,7 +61,9 @@ fun MainScreen(rootNavController: NavHostController) {
                     },
                     initialAmount = currentTrackerDetails.trackerStats?.budget?.toString() ?: "",
                     initialStartDate = currentTrackerDetails.trackerStats?.startDate ?: "",
-                    initialEndDate = currentTrackerDetails.trackerStats?.endDate ?: ""
+                    initialEndDate = currentTrackerDetails.trackerStats?.endDate ?: "",
+                    loading = uiState.isLoading
+
 
                 )
             }

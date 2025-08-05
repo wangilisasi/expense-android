@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -24,7 +26,8 @@ fun BudgetSetupScreen(
     initialName: String = "Oldenburg Expenses",
     initialAmount: String = "",
     initialStartDate: String = "",
-    initialEndDate: String = ""
+    initialEndDate: String = "",
+    loading: Boolean = false
 ) {
     var budgetName by rememberSaveable { mutableStateOf(initialName) }
     var amount by rememberSaveable { mutableStateOf(initialAmount) }
@@ -37,13 +40,19 @@ fun BudgetSetupScreen(
 
     val isEditMode = initialAmount.isNotBlank()
     val buttonText = if (isEditMode) "Update Budget" else "Create Budget"
+    val authViewModel: AuthViewModel = hiltViewModel()
 
 
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditMode) "Edit Budget" else "Budget Setup") }
+                title = { Text(if (isEditMode) "Edit Budget" else "Budget Setup") },
+                actions = {
+                    ThreeDotMenu(onLogoutClick = {
+                        authViewModel.logout()
+                    })
+                }
             )
         }
     ) { innerPadding ->
@@ -121,7 +130,15 @@ fun BudgetSetupScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
             ) {
-                Text(buttonText)
+                if (loading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(buttonText)
+                }
             }
         }
 
