@@ -108,9 +108,9 @@ fun DashBoardScreen(
                         .fillMaxSize()
                         .padding(innerPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    reverseLayout = true
+                    //reverseLayout = true
                 ) {
-                    items(uiState.expenses, key = { it.id }) { expense ->
+                    items(uiState.expenses.asReversed(), key = { it.id }) { expense ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { desiredValue ->
                                 if (desiredValue == SwipeToDismissBoxValue.EndToStart) { // Swiped left
