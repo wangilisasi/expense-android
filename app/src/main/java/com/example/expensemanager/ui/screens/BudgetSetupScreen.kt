@@ -1,5 +1,6 @@
 package com.example.expensemanager.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -124,6 +125,7 @@ fun BudgetSetupScreen(
                         endDate.isNotBlank()
                     ) {
                         onFormSubmit(budgetName, amount, startDate, endDate)
+                        Log.d("BudgetSetupScreen", "onFormSubmit called with values: $budgetName, $amount, $startDate, $endDate")
                     }
                 },
                 modifier = Modifier

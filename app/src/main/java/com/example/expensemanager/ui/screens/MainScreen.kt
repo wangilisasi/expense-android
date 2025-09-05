@@ -55,10 +55,17 @@ fun MainScreen(rootNavController: NavHostController) {
                 )
             }
             composable(BottomNavItem.BudgetSetup.route) {
+                val isEditMode = (currentTrackerDetails.trackerStats?.budget?.toString() ?: "").isNotBlank()
                 BudgetSetupScreen(
                     onFormSubmit = { name, budget, startDate, endDate ->
-                        expenseListViewModel.updateTracker(name, budget.toDouble(), startDate, endDate)
-                    },
+                        //expenseListViewModel.updateTracker(name, budget.toDouble(), startDate, endDate)
+                        if (isEditMode) {
+                                                        expenseListViewModel.updateTracker(name, budget.toDouble(), startDate, endDate)
+                                                   } else {
+                                                       // For a new user, call createBudget
+                                                       expenseListViewModel.createBudget(name, budget.toDouble(), startDate, endDate)
+                                                    }
+                                   },
                     initialAmount = currentTrackerDetails.trackerStats?.budget?.toString() ?: "",
                     initialStartDate = currentTrackerDetails.trackerStats?.startDate ?: "",
                     initialEndDate = currentTrackerDetails.trackerStats?.endDate ?: "",
