@@ -81,17 +81,18 @@ fun DashBoardScreen(
     val uiState by expenseViewModel.uiState.collectAsState()
     val authState by authViewModel.authState.collectAsState()
     val scope = rememberCoroutineScope()
+    val statsUiState by expenseViewModel.statsUiState.collectAsState()
 
     var expenseToDelete by remember { mutableStateOf<ExpenseResponse?>(null) }
 
     // Hardcoded values to match the UI design
-    val budget = 60000.0
-    val targetSpend = 45000.0
+    val budget = statsUiState.trackerStats?.budget ?: 0.0
+    val targetSpend = statsUiState.trackerStats?.targetExpenditurePerDay ?: 0.0
     // Calculate total spent from the state
-    val totalSpent = uiState.expenses.sumOf { it.amount }
+    val totalSpent = statsUiState.trackerStats?.totalExpenditure ?: 0.0
     val remaining = budget - totalSpent
     // Hardcode today's spend as we don't have date info in the model
-    val todaysSpend = 100.0
+    val todaysSpend = statsUiState.trackerStats?.todaysExpenditure?:0.0
 
     expenseToDelete?.let { expense ->
         AlertDialog(
