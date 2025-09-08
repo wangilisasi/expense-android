@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -218,7 +219,7 @@ fun DashBoardScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -227,9 +228,10 @@ fun DashBoardScreen(
                                 )
                                 IconButton(onClick = { expanded = !expanded }) {
                                     Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
+                                        imageVector = Icons.Default.KeyboardArrowDown,
                                         contentDescription = if (expanded) "Collapse" else "Expand",
                                         modifier = Modifier.rotate(rotation)
+
                                     )
                                 }
                             }
