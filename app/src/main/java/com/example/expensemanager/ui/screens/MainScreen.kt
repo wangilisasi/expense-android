@@ -45,15 +45,18 @@ fun MainScreen(rootNavController: NavHostController) {
         ) {
             composable(BottomNavItem.Home.route) {
                 // Pass the ViewModel instance down to ensure the same one is used
-                HomeScreen(
-                    rootNavController = rootNavController,
-                )
-            }
-            composable(BottomNavItem.Reports.route) {
+                //HomeScreen(
+                    //rootNavController = rootNavController,
+                //)
                 DashBoardScreen(
                     rootNavController = rootNavController,
                 )
             }
+            //composable(BottomNavItem.Reports.route) {
+                //DashBoardScreen(
+                    //rootNavController = rootNavController,
+                //)
+            //}
             composable(BottomNavItem.BudgetSetup.route) {
                 val isEditMode = (currentTrackerDetails.trackerStats?.budget?.toString() ?: "").isNotBlank()
                 BudgetSetupScreen(
@@ -81,7 +84,7 @@ fun MainScreen(rootNavController: NavHostController) {
 
 @Composable
 fun BottomBar(navController: NavHostController) {
-    val items = listOf(BottomNavItem.Home,BottomNavItem.BudgetSetup, BottomNavItem.Reports)
+    val items = listOf(BottomNavItem.Home,BottomNavItem.BudgetSetup)
     // Use NavigationBar instead of BottomNavigation
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()

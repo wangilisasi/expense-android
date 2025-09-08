@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -26,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
@@ -47,6 +49,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +61,7 @@ import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 import java.text.NumberFormat
+import java.time.LocalDate
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -85,6 +89,11 @@ fun DashBoardScreen(
 
     var expenseToDelete by remember { mutableStateOf<ExpenseResponse?>(null) }
 
+    // State for the "Add Expense" dialog
+    var showAddExpenseDialog by remember { mutableStateOf(false) }
+    var newExpenseDescription by remember { mutableStateOf("") }
+    var newExpenseAmount by remember { mutableStateOf("") }
+
     // Hardcoded values to match the UI design
     val budget = statsUiState.trackerStats?.budget ?: 0.0
     val targetSpend = statsUiState.trackerStats?.targetExpenditurePerDay ?: 0.0
@@ -92,8 +101,69 @@ fun DashBoardScreen(
     val totalSpent = statsUiState.trackerStats?.totalExpenditure ?: 0.0
     val remaining = budget - totalSpent
     // Hardcode today's spend as we don't have date info in the model
-    val todaysSpend = statsUiState.trackerStats?.todaysExpenditure?:0.0
+    val todaysSpend = statsUiState.trackerStats?.todaysExpenditure ?: 0.0
 
+    // Dialog for adding a new expense
+    if (showAddExpenseDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddExpenseDialog = false
+                newExpenseDescription = ""
+                newExpenseAmount = ""
+            },
+            title = { Text("Add New Expense") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newExpenseDescription,
+                        onValueChange = { newExpenseDescription = it },
+                        label = { Text("Item Bought") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = newExpenseAmount,
+                        onValueChange = { newExpenseAmount = it },
+                        label = { Text("Amount") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val amountDouble = newExpenseAmount.toDoubleOrNull()
+                        if (newExpenseDescription.isNotBlank() && amountDouble != null) {
+                            expenseViewModel.addExpense(
+                                newExpenseDescription,
+                                amountDouble,
+                                LocalDate.now().toString()
+                            )
+                            showAddExpenseDialog = false
+                            newExpenseDescription = ""
+                            newExpenseAmount = ""
+                        }
+                    },
+                    enabled = newExpenseDescription.isNotBlank() && newExpenseAmount.toDoubleOrNull() != null
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAddExpenseDialog = false
+                        newExpenseDescription = ""
+                        newExpenseAmount = ""
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog for confirming deletion
     expenseToDelete?.let { expense ->
         AlertDialog(
             onDismissRequest = { expenseToDelete = null },
@@ -126,7 +196,7 @@ fun DashBoardScreen(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* TODO: Navigate to Add Expense Screen */ },
+                onClick = { showAddExpenseDialog = true }, // Show dialog on click
                 shape = CircleShape,
                 containerColor = Color(0xFF616161) // softer grey instead of purple
             ) {
@@ -184,7 +254,7 @@ fun DashBoardScreen(
                         }
                     }
 
-                    items(uiState.expenses.asReversed(), key = { it.id }) { expense ->
+                    items(uiState.expenses, key = { it.id }) { expense ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = {
                                 if (it == SwipeToDismissBoxValue.EndToStart) {
