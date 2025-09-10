@@ -3,6 +3,10 @@ package com.example.expensemanager.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,7 +79,7 @@ fun DashBoardScreen(
     val todaysSpend = statsUiState.trackerStats?.todaysExpenditure ?: 0.0
 
     // Toggle for Transactions
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(true) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "")
 
     // ========= Add Expense Dialog =========
@@ -219,7 +223,7 @@ fun DashBoardScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -238,8 +242,11 @@ fun DashBoardScreen(
                         }
 
                         item {
-                            AnimatedVisibility(visible = expanded) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            AnimatedVisibility(visible = expanded,
+                            enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically()+ fadeOut()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     uiState.expenses.forEach { expense ->
                                         val dismissState = rememberSwipeToDismissBoxState(
                                             confirmValueChange = {
@@ -359,9 +366,9 @@ fun BudgetSummaryCard(
             Divider(color = Color.White.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SummaryRow("Budget", formatTzs(budget))
-                SummaryRow("Target Spend", formatTzs(targetSpend))
                 SummaryRow("Total Spent", formatTzs(totalSpent))
                 SummaryRow("Today's Spend", formatTzs(todaysSpend))
+                SummaryRow("Target Spend", formatTzs(targetSpend))
             }
         }
     }
@@ -380,15 +387,23 @@ fun SummaryRow(label: String, amount: String) {
 
 @Composable
 fun ExpenseListItem(expense: ExpenseResponse) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(expense.description, style = MaterialTheme.typography.bodyLarge)
-            Text(formatTzs(expense.amount), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+        Column {
+            Row(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(expense.description, style = MaterialTheme.typography.bodyLarge)
+                Text(formatTzs(expense.amount), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            }
+            Divider(
+                color = Color(0xFFE0E0E0),
+                thickness = 0.5.dp
+            )
+
         }
+
     }
 }
 
