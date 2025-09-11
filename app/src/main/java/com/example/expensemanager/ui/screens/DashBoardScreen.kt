@@ -246,7 +246,7 @@ fun DashBoardScreen(
                             enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically()+ fadeOut()
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     uiState.expenses.forEach { expense ->
                                         val dismissState = rememberSwipeToDismissBoxState(
                                             confirmValueChange = {
@@ -387,10 +387,10 @@ fun SummaryRow(label: String, amount: String) {
 
 @Composable
 fun ExpenseListItem(expense: ExpenseResponse) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(7.dp)) {
         Column {
             Row(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
