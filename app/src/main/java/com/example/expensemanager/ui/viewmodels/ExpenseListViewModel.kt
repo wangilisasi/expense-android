@@ -63,6 +63,7 @@ class ExpenseListViewModel @Inject constructor(
                 //Load Expenses and stats after the async op to load the tracker
                 loadExpenses()
                 loadStats()
+                getDailyExpenses()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load current tracker details", e)
                 // Handle error, maybe update UI state
@@ -107,6 +108,7 @@ class ExpenseListViewModel @Inject constructor(
     }
 
 
+
     fun addExpense(description: String, amount: Double, date: String) {
         viewModelScope.launch {
             try {
@@ -141,6 +143,32 @@ class ExpenseListViewModel @Inject constructor(
                 _uiState.update { it.copy(error = "Failed to add expense.") }
                 // On failure, send an error event
 
+            }
+        }
+    }
+
+    fun getDailyExpenses() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            try{
+                val trackerId = currentTracker?.id
+                if (trackerId == null) {
+                    //Navigate to Budget Setup
+                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
+                    _uiState.update { it.copy(isLoading = false) }
+                    return@launch
+                }
+
+                val dailyExpenses = repository.getDailyExpenses(trackerId)
+                _uiState.update {
+                    it.copy(isLoading = false, dailyExpenses = dailyExpenses)
+                }
+
+
+            }catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isLoading = false, error = e.message ?: "Failed to load stats.")
+                }
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.example.expensemanager.data
 
 import com.example.expensemanager.api.ExpenseApiService
+import com.example.expensemanager.models.DailyExpensesResponse
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTrackerRequest
@@ -39,6 +40,11 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
     suspend fun updateTracker(trackerId: Int, expenseTrackerRequest: ExpenseTrackerRequest): Response<ExpenseTrackerResponse> {
         return apiService.updateTracker(trackerId, expenseTrackerRequest)
     }
+
+    suspend fun getDailyExpenses(trackerId: Int): DailyExpensesResponse {
+        return apiService.getDailyExpensesForTracker(trackerId)
+    }
+
 
 
 

@@ -1,5 +1,6 @@
 package com.example.expensemanager.api
 
+import com.example.expensemanager.models.DailyExpensesResponse
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTrackerRequest
@@ -46,6 +47,11 @@ interface ExpenseApiService {
         @Path("id") trackerId: Int,
         @Body expenseTrackerRequest: ExpenseTrackerRequest
     ): Response<ExpenseTrackerResponse>
+
+    @GET("trackers/{trackerId}/daily-expenses")
+    suspend fun getDailyExpensesForTracker(
+        @Path("trackerId") trackerId: Int
+    ): DailyExpensesResponse
 
 
 }
