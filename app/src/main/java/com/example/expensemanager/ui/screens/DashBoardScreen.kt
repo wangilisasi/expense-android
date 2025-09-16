@@ -213,7 +213,8 @@ fun DashBoardScreen(
                             budget = budget,
                             targetSpend = targetSpend,
                             totalSpent = totalSpent,
-                            todaysSpend = todaysSpend
+                            todaysSpend = todaysSpend,
+                            averageExpenditure = statsUiState.trackerStats?.averageExpenditure ?: 0.0
                         )
                     }
                     item {
@@ -343,7 +344,8 @@ fun BudgetSummaryCard(
     budget: Double,
     targetSpend: Double,
     totalSpent: Double,
-    todaysSpend: Double
+    todaysSpend: Double,
+    averageExpenditure: Double = 0.0
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -373,6 +375,7 @@ fun BudgetSummaryCard(
                 SummaryRow("Total Spent", formatTzs(totalSpent))
                 SummaryRow("Today's Spend", formatTzs(todaysSpend))
                 SummaryRow("Target Spend", formatTzs(targetSpend))
+                SummaryRow("Average Spend", formatTzs(averageExpenditure))
             }
         }
     }
@@ -440,7 +443,9 @@ fun DailyExpensesSection(dailyExpenses: List<DailyExpense>) {
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
                 shape = RoundedCornerShape(8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors =CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+
             ) {
                 Column(
                     modifier = Modifier
@@ -468,8 +473,8 @@ fun DailyExpensesSection(dailyExpenses: List<DailyExpense>) {
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = when {
-                                    isToday -> "Today (${day.date})"
-                                    day.date == LocalDate.now().minusDays(1).toString() -> "Yesterday (${day.date})"
+                                    isToday -> "Today"
+                                    day.date == LocalDate.now().minusDays(1).toString() -> "Yesterday"
                                     else -> day.date
                                 },
                                 style = MaterialTheme.typography.bodyLarge.copy(

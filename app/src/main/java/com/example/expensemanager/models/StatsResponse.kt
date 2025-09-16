@@ -18,5 +18,7 @@ data class StatsResponse(
     @SerializedName("total_expenditure")
     val totalExpenditure: Double,
     @SerializedName("todays_expenditure")
-    val todaysExpenditure: Double
+    val todaysExpenditure: Double,
+    @SerializedName("average_expenditure_per_day")
+    val averageExpenditure: Double
 )

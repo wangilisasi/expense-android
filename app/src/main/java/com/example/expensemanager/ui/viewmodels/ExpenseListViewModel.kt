@@ -136,6 +136,7 @@ class ExpenseListViewModel @Inject constructor(
                 // Reload expenses to show the new one
                 loadExpenses()
                 loadStats()
+                getDailyExpenses()
 
             } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
@@ -274,6 +275,7 @@ class ExpenseListViewModel @Inject constructor(
                 }
                 loadExpenses()
                 loadStats()
+                getDailyExpenses()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to delete expense", e)
                 _uiState.update {
