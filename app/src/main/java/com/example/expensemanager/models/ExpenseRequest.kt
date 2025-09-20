@@ -9,7 +9,7 @@ data class ExpenseRequest(
     val amount: Double,
     @SerializedName("date")
     val date: String,
-    @SerializedName("trackerId")
-    val trackerId: Int
+    @SerializedName("uuid_tracker_id")
+    val trackerId: String
     // Notice: NO 'id' field here
 )

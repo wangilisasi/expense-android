@@ -257,7 +257,7 @@ class ExpenseListViewModel @Inject constructor(
         }
     }
 
-    fun deleteExpense(expenseId: Int) {
+    fun deleteExpense(expenseId: String) {
         viewModelScope.launch {
             try {
                 _uiState.update {

@@ -16,12 +16,12 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
         return apiService.getTrackers()
     }
 
-    suspend fun getExpenses(trackerId: Int): List<ExpenseResponse> {
+    suspend fun getExpenses(trackerId: String): List<ExpenseResponse> {
         return apiService.getExpensesForTracker(trackerId)
     }
 
     // Get tracker stats
-    suspend fun getStats(trackerId: Int): StatsResponse {
+    suspend fun getStats(trackerId: String): StatsResponse {
         return apiService.getStatsForTracker(trackerId)
     }
 
@@ -33,15 +33,15 @@ class ExpenseRepository @Inject constructor(private val apiService: ExpenseApiSe
         apiService.addExpense(expenseRequest)
     }
 
-    suspend fun deleteExpense(expenseId: Int) {
+    suspend fun deleteExpense(expenseId: String) {
         apiService.deleteExpense(expenseId)
     }
 
-    suspend fun updateTracker(trackerId: Int, expenseTrackerRequest: ExpenseTrackerRequest): Response<ExpenseTrackerResponse> {
+    suspend fun updateTracker(trackerId: String, expenseTrackerRequest: ExpenseTrackerRequest): Response<ExpenseTrackerResponse> {
         return apiService.updateTracker(trackerId, expenseTrackerRequest)
     }
 
-    suspend fun getDailyExpenses(trackerId: Int): DailyExpensesResponse {
+    suspend fun getDailyExpenses(trackerId: String): DailyExpensesResponse {
         return apiService.getDailyExpensesForTracker(trackerId)
     }
 

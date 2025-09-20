@@ -3,8 +3,8 @@ package com.example.expensemanager.models
 import com.google.gson.annotations.SerializedName
 
 data class RegisterResponse(
-    @SerializedName("id")
-    val id: Int,
+    @SerializedName("uuid_id")
+    val id: String,
 
     @SerializedName("username")
     val username: String,
