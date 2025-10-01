@@ -14,5 +14,9 @@ data class ExpenseResponse(
     @SerializedName("date")
     val date: String,
     @SerializedName("uuid_tracker_id")
-    val trackerId: String // Foreign key to link to an ExpenseTracker
+    val trackerId: String, // Foreign key to link to an ExpenseTracker
+    @SerializedName("created_at")
+    val createdAt: String,
+    @SerializedName("updated_at")
+    val updatedAt: String
 )

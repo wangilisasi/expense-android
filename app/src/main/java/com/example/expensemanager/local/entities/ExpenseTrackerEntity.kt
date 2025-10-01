@@ -7,9 +7,10 @@ import androidx.room.PrimaryKey
 data class ExpenseTrackerEntity(
     @PrimaryKey
     val id: String, // UUID, also used as server ID
+    val userId: String, // Foreign key to the user
     val name: String,
     val budget: Double,
-    val description: String?,
+    val description: String,
     val startDate: String,
     val endDate: String,
     val isSynced: Boolean = false,

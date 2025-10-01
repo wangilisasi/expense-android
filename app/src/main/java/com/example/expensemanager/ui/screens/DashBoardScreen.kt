@@ -152,7 +152,7 @@ fun DashBoardScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        expenseViewModel.deleteExpense(expense.id)
+                        //expenseViewModel.deleteExpense(expense.id)
                         expenseToDelete = null
                     }
                 ) { Text("Confirm") }
@@ -221,93 +221,93 @@ fun DashBoardScreen(
                         DailyExpensesSection(dailyExpenses = uiState.dailyExpenses.daily_expenses)
                     }
 
-                    // Collapsible Recent Transactions Header
-//                    if (uiState.expenses.isNotEmpty()) {
-//                        item {
-//                            Row(
-//                                modifier = Modifier
-//                                    .fillMaxWidth()
-//                                    .padding(top = 8.dp),
-//                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-//                                verticalAlignment = Alignment.CenterVertically
-//                            ) {
-//                                Text(
-//                                    text = "Recent Transactions",
-//                                    style = MaterialTheme.typography.titleMedium
-//                                )
-//                                IconButton(onClick = { expanded = !expanded }) {
-//                                    Icon(
-//                                        imageVector = Icons.Default.KeyboardArrowDown,
-//                                        contentDescription = if (expanded) "Collapse" else "Expand",
-//                                        modifier = Modifier.rotate(rotation)
-//
-//                                    )
-//                                }
-//                            }
-//                        }
-//
-//                        item {
-//                            AnimatedVisibility(visible = expanded,
-//                            enter = expandVertically() + fadeIn(),
-//                                exit = shrinkVertically()+ fadeOut()
-//                            ) {
-//                                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-//                                    uiState.expenses.forEach { expense ->
-//                                        val dismissState = rememberSwipeToDismissBoxState(
-//                                            confirmValueChange = {
-//                                                if (it == SwipeToDismissBoxValue.EndToStart) {
-//                                                    expenseToDelete = expense
-//                                                    return@rememberSwipeToDismissBoxState false
-//                                                }
-//                                                true
-//                                            },
-//                                        )
-//
-//                                        LaunchedEffect(expenseToDelete) {
-//                                            if (expenseToDelete == null) {
-//                                                scope.launch { dismissState.reset() }
-//                                            }
-//                                        }
-//
-//                                        SwipeToDismissBox(
-//                                            state = dismissState,
-//                                            enableDismissFromStartToEnd = false,
-//                                            backgroundContent = {
-//                                                val color by animateColorAsState(
-//                                                    targetValue = when (dismissState.targetValue) {
-//                                                        SwipeToDismissBoxValue.EndToStart -> Color(0xFFB71C1C)
-//                                                        else -> Color.Transparent
-//                                                    },
-//                                                    label = "",
-//                                                )
-//                                                val scale by animateFloatAsState(
-//                                                    targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1f else 0.75f,
-//                                                    label = ""
-//                                                )
-//
-//                                                Box(
-//                                                    Modifier
-//                                                        .fillMaxSize()
-//                                                        .background(color, shape = RoundedCornerShape(12.dp))
-//                                                        .padding(horizontal = 20.dp),
-//                                                    contentAlignment = Alignment.CenterEnd
-//                                                ) {
-//                                                    Icon(
-//                                                        Icons.Default.Delete,
-//                                                        contentDescription = "Delete Icon",
-//                                                        modifier = Modifier.scale(scale),
-//                                                        tint = Color.White
-//                                                    )
-//                                                }
-//                                            },
-//                                        ) {
-//                                            ExpenseListItem(expense = expense)
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
+                     //Collapsible Recent Transactions Header
+                    if (uiState.expenses.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Recent Transactions",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                IconButton(onClick = { expanded = !expanded }) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = if (expanded) "Collapse" else "Expand",
+                                        modifier = Modifier.rotate(rotation)
+
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
+                            AnimatedVisibility(visible = expanded,
+                            enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically()+ fadeOut()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    uiState.expenses.forEach { expense ->
+                                        val dismissState = rememberSwipeToDismissBoxState(
+                                            confirmValueChange = {
+                                                if (it == SwipeToDismissBoxValue.EndToStart) {
+                                                    expenseToDelete = expense
+                                                    return@rememberSwipeToDismissBoxState false
+                                                }
+                                                true
+                                            },
+                                        )
+
+                                        LaunchedEffect(expenseToDelete) {
+                                            if (expenseToDelete == null) {
+                                                scope.launch { dismissState.reset() }
+                                            }
+                                        }
+
+                                        SwipeToDismissBox(
+                                            state = dismissState,
+                                            enableDismissFromStartToEnd = false,
+                                            backgroundContent = {
+                                                val color by animateColorAsState(
+                                                    targetValue = when (dismissState.targetValue) {
+                                                        SwipeToDismissBoxValue.EndToStart -> Color(0xFFB71C1C)
+                                                        else -> Color.Transparent
+                                                    },
+                                                    label = "",
+                                                )
+                                                val scale by animateFloatAsState(
+                                                    targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1f else 0.75f,
+                                                    label = ""
+                                                )
+
+                                                Box(
+                                                    Modifier
+                                                        .fillMaxSize()
+                                                        .background(color, shape = RoundedCornerShape(12.dp))
+                                                        .padding(horizontal = 20.dp),
+                                                    contentAlignment = Alignment.CenterEnd
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Delete,
+                                                        contentDescription = "Delete Icon",
+                                                        modifier = Modifier.scale(scale),
+                                                        tint = Color.White
+                                                    )
+                                                }
+                                            },
+                                        ) {
+                                            ExpenseListItem(expense = expense)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

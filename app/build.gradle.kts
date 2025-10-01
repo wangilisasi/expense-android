@@ -54,6 +54,7 @@ dependencies {
     val room_version = "2.8.0"
 
     implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.startup:startup-runtime:1.2.0")
 
     // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
     // See Add the KSP plugin to your project
