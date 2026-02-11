@@ -35,6 +35,9 @@ class AuthViewModel @Inject constructor(
     private val _loginInProgress = MutableStateFlow(false)
     val loginInProgress: StateFlow<Boolean> = _loginInProgress.asStateFlow()
 
+    private val _username = MutableStateFlow<String?>(null)
+    val username: StateFlow<String?> = _username.asStateFlow()
+
     private val _registrationInProgress = MutableStateFlow(false)
     val registrationInProgress: StateFlow<Boolean> = _registrationInProgress.asStateFlow()
 
@@ -54,13 +57,14 @@ class AuthViewModel @Inject constructor(
             val token = tokenManager.getToken().firstOrNull() // Check if a token exists
             if (token != null && !tokenManager.isTokenExpired(token)) {
                 _authState.value = AuthState.Authenticated
-
-
+                _username.value = tokenManager.getUsernameFromToken(token)
             } else if (token != null && tokenManager.isTokenExpired(token)) {
                 tokenManager.clearToken()
                 _authState.value = AuthState.Unauthenticated
+                _username.value = null
             } else {
                 _authState.value = AuthState.Unauthenticated
+                _username.value = null
 
             }
         }
@@ -75,11 +79,13 @@ class AuthViewModel @Inject constructor(
             result.onSuccess { loginResponse ->
 
                 _authState.value = AuthState.Authenticated
+                _username.value = tokenManager.getUsernameFromToken(loginResponse.accessToken) ?: username
 
             }.onFailure { exception ->
                 _errorEvents.value = exception.message ?: "Login failed"
                 _authState.value =
                     AuthState.Unauthenticated // Ensure state is unauthenticated on error
+                _username.value = null
             }
             _loginInProgress.value = false
         }
@@ -106,6 +112,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.logout()
             _authState.value = AuthState.Unauthenticated
+            _username.value = null
         }
     }
 

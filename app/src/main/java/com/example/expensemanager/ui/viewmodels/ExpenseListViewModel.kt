@@ -117,22 +117,6 @@ class ExpenseListViewModel @Inject constructor(
                     launch {
                         runCatching { repository.refreshExpenses(tracker.id) }
                             .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
-
-                        runCatching { repository.getStats(tracker.id) }
-                            .onSuccess { remoteStats ->
-                                _statsUiState.update {
-                                    it.copy(
-                                        trackerStats = remoteStats,
-                                        trackerName = tracker.name,
-                                        isLoading = false,
-                                        errorMessage = null
-                                    )
-                                }
-                            }
-                            .onFailure { error ->
-                                Log.w(TAG, "Could not fetch tracker stats. Falling back to local stats.", error)
-                                _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
-                            }
                     }
                 }
             }

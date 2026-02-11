@@ -67,6 +67,7 @@ fun DashBoardScreen(
 ) {
     val uiState by expenseViewModel.uiState.collectAsState()
     val authState by authViewModel.authState.collectAsState()
+    val username by authViewModel.username.collectAsState()
     val statsUiState by expenseViewModel.statsUiState.collectAsState()
 
     // State for the "Add Expense" dialog
@@ -225,7 +226,7 @@ fun DashBoardScreen(
                         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        item { TopHeader() }
+                        item { TopHeader(username = username) }
 
                         item {
                             BudgetSummaryCard(
@@ -251,20 +252,32 @@ fun DashBoardScreen(
 }
 
 @Composable
-fun TopHeader(modifier: Modifier = Modifier) {
+fun TopHeader(
+    modifier: Modifier = Modifier,
+    username: String? = null
+) {
     val monthLabel = remember {
         YearMonth.now().format(
             DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
         )
     }
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        username
+            ?.takeIf { it.isNotBlank() }
+            ?.let {
+                Text(
+                    text = "Hi, $it",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -278,7 +291,7 @@ fun TopHeader(modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     text = monthLabel,

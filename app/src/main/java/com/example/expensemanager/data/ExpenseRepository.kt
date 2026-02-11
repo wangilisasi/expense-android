@@ -17,7 +17,6 @@ import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.models.ExpenseTrackerResponse
-import com.example.expensemanager.models.StatsResponse
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -177,10 +176,6 @@ class ExpenseRepository @Inject constructor(
             }
             else -> patchResponse
         }
-    }
-
-    suspend fun getStats(trackerId: String): StatsResponse {
-        return apiService.getStatsForTracker(trackerId)
     }
 
     fun getExpenses(trackerId: String): Flow<List<ExpenseResponse>> {
