@@ -219,6 +219,11 @@ class ExpenseRepository @Inject constructor(
         }
     }
 
+    suspend fun deleteExpense(expenseId: String) {
+        expenseDao.markAsDeleted(expenseId)
+        scheduleSync()
+    }
+
     fun triggerExpenseSync() {
         scheduleSync()
     }

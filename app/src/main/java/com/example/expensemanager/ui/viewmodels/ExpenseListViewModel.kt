@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerResponse
+import com.example.expensemanager.models.DailyExpense
+import com.example.expensemanager.models.DailyExpensesResponse
+import com.example.expensemanager.models.ExpenseTransaction
 import com.example.expensemanager.models.StatsResponse
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -60,7 +64,14 @@ class ExpenseListViewModel @Inject constructor(
                 currentTracker = tracker
 
                 if (tracker == null) {
-                    _uiState.update { it.copy(isLoading = false, expenses = emptyList(), error = null) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            expenses = emptyList(),
+                            dailyExpenses = DailyExpensesResponse(),
+                            error = null
+                        )
+                    }
                     _statsUiState.update {
                         it.copy(
                             trackerStats = null,
@@ -81,36 +92,47 @@ class ExpenseListViewModel @Inject constructor(
                     )
                 }
 
-                runCatching { repository.refreshExpenses(tracker.id) }
-                    .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
-
-                runCatching { repository.getStats(tracker.id) }
-                    .onSuccess { remoteStats ->
-                        _statsUiState.update {
-                            it.copy(
-                                trackerStats = remoteStats,
-                                trackerName = tracker.name,
-                                isLoading = false,
-                                errorMessage = null
-                            )
+                coroutineScope {
+                    launch {
+                        repository.getExpenses(tracker.id).collect { expenses ->
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    expenses = expenses,
+                                    dailyExpenses = buildLocalDailyExpenses(expenses),
+                                    error = null
+                                )
+                            }
+                            _statsUiState.update { state ->
+                                state.copy(
+                                    trackerStats = buildLocalStats(tracker, expenses),
+                                    trackerName = tracker.name,
+                                    isLoading = false,
+                                    errorMessage = null
+                                )
+                            }
                         }
                     }
-                    .onFailure { error ->
-                        Log.w(TAG, "Could not fetch tracker stats. Falling back to local stats.", error)
-                        _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
-                    }
 
-                repository.getExpenses(tracker.id).collect { expenses ->
-                    _uiState.update {
-                        it.copy(isLoading = false, expenses = expenses, error = null)
-                    }
-                    _statsUiState.update { state ->
-                        state.copy(
-                            trackerStats = buildLocalStats(tracker, expenses),
-                            trackerName = tracker.name,
-                            isLoading = false,
-                            errorMessage = null
-                        )
+                    launch {
+                        runCatching { repository.refreshExpenses(tracker.id) }
+                            .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
+
+                        runCatching { repository.getStats(tracker.id) }
+                            .onSuccess { remoteStats ->
+                                _statsUiState.update {
+                                    it.copy(
+                                        trackerStats = remoteStats,
+                                        trackerName = tracker.name,
+                                        isLoading = false,
+                                        errorMessage = null
+                                    )
+                                }
+                            }
+                            .onFailure { error ->
+                                Log.w(TAG, "Could not fetch tracker stats. Falling back to local stats.", error)
+                                _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
+                            }
                     }
                 }
             }
@@ -169,6 +191,39 @@ class ExpenseListViewModel @Inject constructor(
             }
         }
     }
+
+    fun deleteExpense(expenseId: String) {
+        viewModelScope.launch {
+            try {
+                repository.deleteExpense(expenseId)
+            } catch (e: Exception) {
+                Log.e(TAG, "An error occurred while deleting an expense", e)
+                _uiState.update { it.copy(error = "Failed to delete expense.") }
+            }
+        }
+    }
+}
+
+private fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpensesResponse {
+    val groupedByDate = expenses.groupBy { it.date }
+    val dailyTotals = groupedByDate.entries
+        .sortedByDescending { it.key }
+        .map { (date, dayExpenses) ->
+            DailyExpense(
+                date = date,
+                total_amount = dayExpenses.sumOf { it.amount },
+                transactions = dayExpenses.map { expense ->
+                    ExpenseTransaction(
+                        id = expense.id,
+                        name = expense.description,
+                        amount = expense.amount,
+                        isSynced = expense.isSynced
+                    )
+                }
+            )
+        }
+
+    return DailyExpensesResponse(daily_expenses = dailyTotals)
 }
 
 private fun buildLocalStats(

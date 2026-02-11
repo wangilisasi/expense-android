@@ -8,5 +8,6 @@ data class ExpenseTransaction(
     @SerializedName("name")
     val name: String,
     @SerializedName("amount")
-    val amount: Double
+    val amount: Double,
+    val isSynced: Boolean = true
 )
