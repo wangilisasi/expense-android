@@ -16,20 +16,20 @@ interface ExpenseApiService {
     @GET("trackers")
     suspend fun getTrackers(): List<ExpenseTrackerResponse>
 
-    @GET("trackers/{id}")
-    suspend fun getTrackerDetails(@Path("id") trackerId: Int): ExpenseTrackerResponse
+    @GET("trackers/{tracker_uuid_id}")
+    suspend fun getTrackerDetails(@Path("tracker_uuid_id") trackerId: String): ExpenseTrackerResponse
 
     // --- Expense Endpoints ---
 
-    @GET("trackers/{trackerId}/expenses")
+    @GET("trackers/{tracker_uuid_id}/expenses")
     suspend fun getExpensesForTracker(
-        @Path("trackerId") trackerId: Int
+        @Path("tracker_uuid_id") trackerId: String
     ): List<ExpenseResponse>
 
     // Stats Endpoint
-    @GET("trackers/{trackerId}/stats")
+    @GET("trackers/{tracker_uuid_id}/stats")
     suspend fun getStatsForTracker(
-        @Path("trackerId") trackerId: Int
+        @Path("tracker_uuid_id") trackerId: String
     ): StatsResponse
 
 
@@ -39,18 +39,42 @@ interface ExpenseApiService {
     @POST("expenses")
     suspend fun addExpense(@Body expenseRequest: ExpenseRequest): Response<ExpenseResponse> // Or some other success response
 
-    @DELETE("expenses/{id}")
-    suspend fun deleteExpense(@Path("id") expenseId: Int): Response<Unit>
+    @POST("trackers/{tracker_uuid_id}/expenses")
+    suspend fun addExpenseForTracker(
+        @Path("tracker_uuid_id") trackerId: String,
+        @Body expenseRequest: ExpenseRequest
+    ): Response<ExpenseResponse>
 
-    @PATCH("trackers/{id}")
+    @DELETE("expenses/{uuid_id}")
+    suspend fun deleteExpense(@Path("uuid_id") expenseId: String): Response<Unit>
+
+    @PATCH("trackers/{uuid_id}")
     suspend fun updateTracker(
-        @Path("id") trackerId: Int,
+        @Path("uuid_id") trackerId: String,
         @Body expenseTrackerRequest: ExpenseTrackerRequest
     ): Response<ExpenseTrackerResponse>
 
-    @GET("trackers/{trackerId}/daily-expenses")
+    @PUT("trackers/{uuid_id}")
+    suspend fun updateTrackerPut(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: ExpenseTrackerRequest
+    ): Response<ExpenseTrackerResponse>
+
+    @PATCH("trackers/{uuid_id}")
+    suspend fun updateTrackerMap(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: Map<String, @JvmSuppressWildcards Any>
+    ): Response<ExpenseTrackerResponse>
+
+    @PUT("trackers/{uuid_id}")
+    suspend fun updateTrackerPutMap(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: Map<String, @JvmSuppressWildcards Any>
+    ): Response<ExpenseTrackerResponse>
+
+    @GET("trackers/{tracker_uuid_id}/daily-expenses")
     suspend fun getDailyExpensesForTracker(
-        @Path("trackerId") trackerId: Int
+        @Path("tracker_uuid_id") trackerId: String
     ): DailyExpensesResponse
 
 

@@ -1,12 +1,20 @@
 package com.example.expensemanager.di
 
+import android.content.Context
+import androidx.room.ProvidedTypeConverter
+import androidx.room.Room
 import com.example.expensemanager.api.AuthApiService
 import com.example.expensemanager.api.AuthInterceptor
 import com.example.expensemanager.api.ExpenseApiService
+import com.example.expensemanager.local.AppDatabase
 import com.example.expensemanager.local.TokenManager
+import com.example.expensemanager.local.daos.ExpenseDao
+import com.example.expensemanager.local.daos.ExpenseTrackerDao
+import com.example.expensemanager.local.daos.UserDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -66,4 +74,25 @@ object AppModule {
     fun provideExpenseApiService(retrofit: Retrofit): ExpenseApiService {
         return retrofit.create(ExpenseApiService::class.java)
     }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+    @Provides
+    @Singleton
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+        return Room.databaseBuilder(context, AppDatabase::class.java, "expense_manager.db")
+            .fallbackToDestructiveMigration() // Easiest for development
+            .build()
+    }
+
+    @Provides
+    fun provideExpenseDao(db: AppDatabase): ExpenseDao = db.expenseDao()
+
+    @Provides
+    fun provideExpenseTrackerDao(db: AppDatabase):ExpenseTrackerDao=db.expenseTrackerDao()
+
+    @Provides
+    fun provideUserDao(db: AppDatabase): UserDao =db.userDao()
 }

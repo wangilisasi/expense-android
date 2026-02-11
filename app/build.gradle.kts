@@ -50,6 +50,25 @@ dependencies {
     val lifecycle_version = "2.9.1"
     val arch_version = "2.2.0"
 
+    val work_version = "2.10.4"
+    val room_version = "2.8.0"
+
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.startup:startup-runtime:1.2.0")
+
+    // If this project uses any Kotlin source, use Kotlin Symbol Processing (KSP)
+    // See Add the KSP plugin to your project
+    ksp("androidx.room:room-compiler:$room_version")
+    // optional - Kotlin Extensions and Coroutines support for Room
+    implementation("androidx.room:room-ktx:$room_version")
+
+    // Hilt Integration for WorkManager
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // Kotlin + coroutines
+    implementation("androidx.work:work-runtime-ktx:$work_version")
+
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version")
     // ViewModel utilities for Compose

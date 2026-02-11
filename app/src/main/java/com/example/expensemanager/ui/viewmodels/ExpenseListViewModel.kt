@@ -4,9 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
-import com.example.expensemanager.models.ExpenseRequest
-import com.example.expensemanager.models.ExpenseTrackerRequest
+import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerResponse
+import com.example.expensemanager.models.DailyExpense
+import com.example.expensemanager.models.DailyExpensesResponse
+import com.example.expensemanager.models.ExpenseTransaction
+import com.example.expensemanager.models.StatsResponse
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,26 +17,27 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 private const val TAG = "ExpenseListViewModel"
+private const val SAVE_BUDGET_ERROR = "Failed to save budget."
+private const val ADD_EXPENSE_ERROR = "Failed to add expense."
 
 sealed class ExpenseListNavigationEvent {
-    object NavigateToBudgetSetup : ExpenseListNavigationEvent()
     object NavigateToHome : ExpenseListNavigationEvent()
-
 }
-
-
 
 @HiltViewModel
 class ExpenseListViewModel @Inject constructor(
     private val repository: ExpenseRepository,
-    // tokenManager removed as it was unused
 ) : ViewModel() {
-
 
     private val _uiState = MutableStateFlow(ExpenseListUiState())
     val uiState: StateFlow<ExpenseListUiState> = _uiState
@@ -41,247 +45,223 @@ class ExpenseListViewModel @Inject constructor(
     private val _statsUiState = MutableStateFlow(TrackerStatsUiState())
     val statsUiState: StateFlow<TrackerStatsUiState> = _statsUiState
 
-    private val _navigationEvents = MutableSharedFlow<ExpenseListNavigationEvent>()
+    private val _navigationEvents = MutableSharedFlow<ExpenseListNavigationEvent>(extraBufferCapacity = 1)
     val navigationEvents = _navigationEvents.asSharedFlow()
+
     private var currentTracker: ExpenseTrackerResponse? = null
 
     init {
-        getCurrentTracker()
-
+        observeCurrentTrackerAndExpenses()
+        refreshTrackersFromNetwork()
     }
 
+    private fun observeCurrentTrackerAndExpenses() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-    private fun getCurrentTracker() {
+            repository.getTrackers().collectLatest { trackers ->
+                val tracker = trackers.firstOrNull()
+                currentTracker = tracker
+
+                if (tracker == null) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            expenses = emptyList(),
+                            dailyExpenses = DailyExpensesResponse(),
+                            error = null
+                        )
+                    }
+                    _statsUiState.update {
+                        it.copy(
+                            trackerStats = null,
+                            trackerName = "",
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    }
+                    return@collectLatest
+                }
+
+                _statsUiState.update {
+                    it.copy(
+                        trackerStats = buildLocalStats(tracker, _uiState.value.expenses),
+                        trackerName = tracker.name,
+                        isLoading = true,
+                        errorMessage = null
+                    )
+                }
+
+                coroutineScope {
+                    launch {
+                        repository.getExpenses(tracker.id).collect { expenses ->
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    expenses = expenses,
+                                    dailyExpenses = buildLocalDailyExpenses(expenses),
+                                    error = null
+                                )
+                            }
+                            _statsUiState.update { state ->
+                                state.copy(
+                                    trackerStats = buildLocalStats(tracker, expenses),
+                                    trackerName = tracker.name,
+                                    isLoading = false,
+                                    errorMessage = null
+                                )
+                            }
+                        }
+                    }
+
+                    launch {
+                        runCatching { repository.refreshExpenses(tracker.id) }
+                            .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
+
+                        runCatching { repository.getStats(tracker.id) }
+                            .onSuccess { remoteStats ->
+                                _statsUiState.update {
+                                    it.copy(
+                                        trackerStats = remoteStats,
+                                        trackerName = tracker.name,
+                                        isLoading = false,
+                                        errorMessage = null
+                                    )
+                                }
+                            }
+                            .onFailure { error ->
+                                Log.w(TAG, "Could not fetch tracker stats. Falling back to local stats.", error)
+                                _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun refreshTrackersFromNetwork() {
+        viewModelScope.launch {
+            runCatching { repository.syncAllFromBackend() }
+                .onFailure { Log.w(TAG, "Could not sync all data from backend", it) }
+            repository.triggerExpenseSync()
+        }
+    }
+
+    fun submitBudget(name: String, budget: Double, startDate: String, endDate: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
-                // Assuming getTrackers() returns a list and you're interested in the first one
-                val tracker = repository.getTrackers().firstOrNull() // Or however you get the specific tracker
-                currentTracker = tracker
-                _uiState.update { it.copy(isLoading = false) }
-                //Load Expenses and stats after the async op to load the tracker
-                loadExpenses()
-                loadStats()
-                getDailyExpenses()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load current tracker details", e)
-                // Handle error, maybe update UI state
-                _uiState.update { it.copy(isLoading = false) }
-            }
-        }
-    }
 
+                val trackerId = runCatching {
+                    repository.refreshTrackers()
+                    repository.getLatestTracker()?.id
+                        ?: repository.getTrackers().firstOrNull()?.firstOrNull()?.id
+                }.getOrNull() ?: currentTracker?.id
+                Log.d(TAG, "submitBudget selected trackerId=$trackerId currentTrackerId=${currentTracker?.id}")
 
-
-    fun updateTracker(name: String, budget: Double, startDate: String, endDate: String) {
-        viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-                val trackerId = currentTracker?.id
                 if (trackerId == null) {
-                    //Navigate to Budget Setup
-                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
-                    _uiState.update { it.copy(isLoading = false) }
-                    return@launch
+                    repository.createTracker(name, budget, startDate, endDate)
+                } else {
+                    repository.updateTracker(trackerId, name, budget, startDate, endDate)
                 }
-                val expenseTrackerRequest = ExpenseTrackerRequest(
-                    name = name,
-                    budget = budget,
-                    description = "My Good Budget",
-                    startDate = startDate,
-                    endDate = endDate
-                )
 
-                val response = repository.updateTracker(trackerId, expenseTrackerRequest)
-                currentTracker = response.body()
-                _uiState.update { it.copy(isLoading = false) }
-                // Reload expenses to show the new one
-                loadExpenses()
-                loadStats()
-
-            }catch (e: Exception) {
-                Log.e(TAG, "Failed to load current tracker details", e)
-                // Handle error, maybe update UI state
+                runCatching { repository.refreshTrackers() }
+                    .onFailure { Log.w(TAG, "Budget saved but tracker refresh failed", it) }
+                _uiState.update { it.copy(isLoading = false, error = null) }
+                _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
+                _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToHome)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save budget", e)
+                val message = e.message ?: SAVE_BUDGET_ERROR
+                _uiState.update { it.copy(isLoading = false, error = message) }
+                _statsUiState.update { it.copy(isLoading = false, errorMessage = message) }
             }
         }
     }
-
-
 
     fun addExpense(description: String, amount: Double, date: String) {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-                val trackerId = currentTracker?.id
-                if (trackerId == null) {
-                    //Navigate to Budget Setup
-                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
-                    _uiState.update { it.copy(isLoading = false) }
-                    return@launch
-                }
-
-                val newExpense = ExpenseRequest(
-                    trackerId = trackerId,
-                    description = description,
-                    amount = amount,
-                    date = date
-                )
-
-                repository.addExpense(newExpense)
-                // On success, send the navigation event
-                _uiState.update { it.copy(isLoading = false) }
-
-
-                // Reload expenses to show the new one
-                loadExpenses()
-                loadStats()
-                getDailyExpenses()
-
+                val trackerId = currentTracker?.id ?: return@launch
+                repository.addExpense(description, amount, date, trackerId)
             } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
-                // ✅ Notify the UI of the failure
-                _uiState.update { it.copy(error = "Failed to add expense.") }
-                // On failure, send an error event
-
+                _uiState.update { it.copy(error = ADD_EXPENSE_ERROR) }
             }
         }
     }
 
-    fun getDailyExpenses() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            try{
-                val trackerId = currentTracker?.id
-                if (trackerId == null) {
-                    //Navigate to Budget Setup
-                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
-                    _uiState.update { it.copy(isLoading = false) }
-                    return@launch
-                }
-
-                val dailyExpenses = repository.getDailyExpenses(trackerId)
-                _uiState.update {
-                    it.copy(isLoading = false, dailyExpenses = dailyExpenses)
-                }
-
-
-            }catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, error = e.message ?: "Failed to load stats.")
-                }
-            }
-        }
-    }
-
-
-    fun loadStats() {
-        viewModelScope.launch {
-            _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
-            try {
-                val trackerId = currentTracker?.id
-                if (trackerId == null) {
-                    //Navigate to Budget Setup
-                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
-                    _uiState.update { it.copy(isLoading = false) }
-                    return@launch
-                }
-                val stats = repository.getStats(trackerId)
-                _statsUiState.update {
-                    it.copy(isLoading = false, trackerStats = stats)
-                }
-            } catch (e: Exception) {
-                _statsUiState.update {
-                    it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load stats.")
-                }
-            }
-        }
-    }
-
-    fun createBudget(name: String, budget: Double, startDate: String, endDate: String) {
+    fun deleteExpense(expenseId: String) {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isLoading = true, error = null) }
-                val expenseTrackerRequest = ExpenseTrackerRequest(
-                    name = name,
-                    budget = budget,
-                    description = "My Good Budget",
-                    startDate = startDate,
-                    endDate = endDate
-                )
-                repository.createTracker(expenseTrackerRequest)
-                // On success, send the navigation event
-                _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToHome)
-                _uiState.update { it.copy(isLoading = false) }
-                // Reload expenses to show the new one
-                loadExpenses()
-                loadStats()
-
-            } catch (e: Exception) {
-                Log.e(TAG, "An error occurred while adding an expense", e)
-                // ✅ Notify the UI of the failure
-                _uiState.update { it.copy(error = "Failed to add expense.") }
-                // On failure, send an error event
-            }
-        }
-    }
-
-    fun loadExpenses() {
-        viewModelScope.launch {
-            // Using .update is a concise way to modify StateFlow
-            _uiState.update { it.copy(isLoading = true, error = null) }
-
-            try {
-                // ✅ Use the new helper function
-                val trackerId = currentTracker?.id
-                if (trackerId == null) {
-                    //Navigate to Budget Setup
-                    _navigationEvents.emit(ExpenseListNavigationEvent.NavigateToBudgetSetup)
-                    _uiState.update { it.copy(isLoading = false) }
-                    return@launch
-                }
-
-                val loadedExpenses = repository.getExpenses(trackerId)
-                _uiState.update {
-                    it.copy(isLoading = false, expenses = loadedExpenses)
-                }
-                Log.d(TAG, "Successfully loaded ${loadedExpenses.size} expenses.")
-
-            } catch (e: Exception) {
-                _uiState.update {
-                    // ✅ Provide a more specific error message from the exception if possible
-                    it.copy(isLoading = false, error = e.message ?: "Failed to load expenses.")
-                }
-                Log.e(TAG, "An error occurred while loading expenses", e)
-            }
-        }
-    }
-
-    fun deleteExpense(expenseId: Int) {
-        viewModelScope.launch {
-            try {
-                _uiState.update {
-                    it.copy(isLoading = true, error = null)
-                }
                 repository.deleteExpense(expenseId)
-                _uiState.update {
-                    it.copy(isLoading = false)
-                }
-                // Update local list of expenses to show the new one
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        expenses = currentState.expenses.filterNot { it.id == expenseId }
+            } catch (e: Exception) {
+                Log.e(TAG, "An error occurred while deleting an expense", e)
+                _uiState.update { it.copy(error = "Failed to delete expense.") }
+            }
+        }
+    }
+}
+
+private fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpensesResponse {
+    val groupedByDate = expenses.groupBy { it.date }
+    val dailyTotals = groupedByDate.entries
+        .sortedByDescending { it.key }
+        .map { (date, dayExpenses) ->
+            DailyExpense(
+                date = date,
+                total_amount = dayExpenses.sumOf { it.amount },
+                transactions = dayExpenses.map { expense ->
+                    ExpenseTransaction(
+                        id = expense.id,
+                        name = expense.description,
+                        amount = expense.amount,
+                        isSynced = expense.isSynced
                     )
                 }
-                loadExpenses()
-                loadStats()
-                getDailyExpenses()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to delete expense", e)
-                _uiState.update {
-                    it.copy(isLoading = false, error = "Failed to delete expense.")
-                }
-            }
+            )
         }
-    }
+
+    return DailyExpensesResponse(daily_expenses = dailyTotals)
+}
+
+private fun buildLocalStats(
+    tracker: ExpenseTrackerResponse,
+    expenses: List<ExpenseResponse>
+): StatsResponse {
+    val today = LocalDate.now()
+    val startDate = parseDateOrNull(tracker.startDate)
+    val endDate = parseDateOrNull(tracker.endDate)
+
+    val totalSpent = expenses.sumOf { it.amount }
+    val todaysSpent = expenses.filter { it.date == today.toString() }.sumOf { it.amount }
+    val remainingDays = endDate
+        ?.let { ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) }
+        ?: 0
+
+    val elapsedDays = startDate
+        ?.takeIf { !today.isBefore(it) }
+        ?.let { ChronoUnit.DAYS.between(it, today).toInt() + 1 }
+        ?.coerceAtLeast(1)
+        ?: 1
+
+    val remainingBudget = (tracker.budget - totalSpent).coerceAtLeast(0.0)
+    val targetPerDay = if (remainingDays > 0) remainingBudget / remainingDays else remainingBudget
+    val averageExpenditure = if (expenses.isNotEmpty()) totalSpent / elapsedDays else 0.0
+
+    return StatsResponse(
+        startDate = tracker.startDate,
+        endDate = tracker.endDate,
+        budget = tracker.budget,
+        remainingDays = remainingDays,
+        targetExpenditurePerDay = targetPerDay,
+        totalExpenditure = totalSpent,
+        todaysExpenditure = todaysSpent,
+        averageExpenditure = averageExpenditure
+    )
+}
+
+private fun parseDateOrNull(rawDate: String): LocalDate? {
+    return runCatching { LocalDate.parse(rawDate.take(10)) }.getOrNull()
 }
