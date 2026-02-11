@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.expensemanager.models.DailyExpense
+import com.example.expensemanager.models.ExpenseTransaction
 import com.example.expensemanager.navigation.Screen
 import com.example.expensemanager.ui.theme.Green600
 import com.example.expensemanager.ui.theme.Red600
@@ -71,6 +73,7 @@ fun DashBoardScreen(
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var newExpenseDescription by remember { mutableStateOf("") }
     var newExpenseAmount by remember { mutableStateOf("") }
+    var expenseToDelete by remember { mutableStateOf<ExpenseTransaction?>(null) }
 
     // Budget values
     val budget = statsUiState.trackerStats?.budget ?: 0.0
@@ -133,6 +136,29 @@ fun DashBoardScreen(
                         newExpenseAmount = ""
                     }
                 ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    expenseToDelete?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { expenseToDelete = null },
+            title = { Text("Delete expense?") },
+            text = { Text("Delete \"${expense.name}\" (${formatTzs(expense.amount)})?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        expenseViewModel.deleteExpense(expense.id)
+                        expenseToDelete = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { expenseToDelete = null }) {
                     Text("Cancel")
                 }
             }
@@ -212,7 +238,10 @@ fun DashBoardScreen(
                             )
                         }
                         item {
-                            DailyExpensesSection(dailyExpenses = uiState.dailyExpenses.daily_expenses)
+                            DailyExpensesSection(
+                                dailyExpenses = uiState.dailyExpenses.daily_expenses,
+                                onDeleteClick = { expenseToDelete = it }
+                            )
                         }
                     }
                 }
@@ -347,7 +376,10 @@ private fun ErrorContent(errorMessage: String?) {
 }
 
 @Composable
-fun DailyExpensesSection(dailyExpenses: List<DailyExpense>) {
+fun DailyExpensesSection(
+    dailyExpenses: List<DailyExpense>,
+    onDeleteClick: (ExpenseTransaction) -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -489,6 +521,16 @@ fun DailyExpensesSection(dailyExpenses: List<DailyExpense>) {
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         SyncBadge(isSynced = trx.isSynced)
+                                        IconButton(
+                                            modifier = Modifier.size(22.dp),
+                                            onClick = { onDeleteClick(trx) }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete expense",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
                                 }
                                 HorizontalDivider(
