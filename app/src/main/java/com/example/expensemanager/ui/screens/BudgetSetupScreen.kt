@@ -24,16 +24,17 @@ import java.util.Locale
 @Composable
 fun BudgetSetupScreen(
     onFormSubmit: (name: String, budget: String, startDate: String, endDate: String) -> Unit,
-    initialName: String = "Oldenburg Expenses",
+    initialName: String = "",
     initialAmount: String = "",
     initialStartDate: String = "",
     initialEndDate: String = "",
-    loading: Boolean = false
+    loading: Boolean = false,
+    errorMessage: String? = null
 ) {
-    var budgetName by rememberSaveable { mutableStateOf(initialName) }
-    var amount by rememberSaveable { mutableStateOf(initialAmount) }
-    var startDate by rememberSaveable { mutableStateOf(initialStartDate) }
-    var endDate by rememberSaveable { mutableStateOf(initialEndDate) }
+    var budgetName by rememberSaveable(initialName) { mutableStateOf(initialName) }
+    var amount by rememberSaveable(initialAmount) { mutableStateOf(initialAmount) }
+    var startDate by rememberSaveable(initialStartDate) { mutableStateOf(initialStartDate) }
+    var endDate by rememberSaveable(initialEndDate) { mutableStateOf(initialEndDate) }
 
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
@@ -130,7 +131,8 @@ fun BudgetSetupScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 8.dp),
+                enabled = !loading
             ) {
                 if (loading) {
                     CircularProgressIndicator(
@@ -141,6 +143,14 @@ fun BudgetSetupScreen(
                 } else {
                     Text(buttonText)
                 }
+            }
+
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
 

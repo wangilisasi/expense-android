@@ -10,6 +10,11 @@ data class ExpenseRequest(
     @SerializedName("date")
     val date: String,
     @SerializedName("uuid_tracker_id")
-    val trackerId: String
-    // Notice: NO 'id' field here
+    val trackerId: String,
+    // Some backend variants use "name" instead of "description".
+    @SerializedName("name")
+    val name: String = description,
+    // Some backend variants use "tracker_uuid_id" in request payloads.
+    @SerializedName("tracker_uuid_id")
+    val trackerUuidId: String = trackerId
 )

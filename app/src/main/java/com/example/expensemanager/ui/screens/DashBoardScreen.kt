@@ -402,13 +402,27 @@ fun ExpenseListItem(expense: ExpenseResponse) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(expense.description, style = MaterialTheme.typography.bodyLarge)
-                Text(formatTzs(expense.amount), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        formatTzs(expense.amount),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (expense.isSynced) "S" else "U",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (expense.isSynced) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
             Divider(
                 color = Color(0xFFE0E0E0),
                 thickness = 0.5.dp
             )
-
         }
 
     }

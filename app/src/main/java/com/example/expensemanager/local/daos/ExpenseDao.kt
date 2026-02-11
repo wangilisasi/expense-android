@@ -14,6 +14,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false ORDER BY date DESC")
     fun getExpensesForTracker(trackerId: String): Flow<List<ExpenseEntity>>
 
+    @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false")
+    suspend fun getExpensesForTrackerOnce(trackerId: String): List<ExpenseEntity>
+
     // Insert or update one or more expenses.
     @Upsert
     suspend fun upsertAll(expenses: List<ExpenseEntity>)

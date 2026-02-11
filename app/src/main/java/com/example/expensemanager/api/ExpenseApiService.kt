@@ -39,6 +39,12 @@ interface ExpenseApiService {
     @POST("expenses")
     suspend fun addExpense(@Body expenseRequest: ExpenseRequest): Response<ExpenseResponse> // Or some other success response
 
+    @POST("trackers/{tracker_uuid_id}/expenses")
+    suspend fun addExpenseForTracker(
+        @Path("tracker_uuid_id") trackerId: String,
+        @Body expenseRequest: ExpenseRequest
+    ): Response<ExpenseResponse>
+
     @DELETE("expenses/{uuid_id}")
     suspend fun deleteExpense(@Path("uuid_id") expenseId: String): Response<Unit>
 
@@ -46,6 +52,24 @@ interface ExpenseApiService {
     suspend fun updateTracker(
         @Path("uuid_id") trackerId: String,
         @Body expenseTrackerRequest: ExpenseTrackerRequest
+    ): Response<ExpenseTrackerResponse>
+
+    @PUT("trackers/{uuid_id}")
+    suspend fun updateTrackerPut(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: ExpenseTrackerRequest
+    ): Response<ExpenseTrackerResponse>
+
+    @PATCH("trackers/{uuid_id}")
+    suspend fun updateTrackerMap(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: Map<String, @JvmSuppressWildcards Any>
+    ): Response<ExpenseTrackerResponse>
+
+    @PUT("trackers/{uuid_id}")
+    suspend fun updateTrackerPutMap(
+        @Path("uuid_id") trackerId: String,
+        @Body expenseTrackerRequest: Map<String, @JvmSuppressWildcards Any>
     ): Response<ExpenseTrackerResponse>
 
     @GET("trackers/{tracker_uuid_id}/daily-expenses")
