@@ -243,7 +243,7 @@ class ExpenseRepository @Inject constructor(
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             EXPENSE_SYNC_WORK,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             syncRequest
         )
     }
