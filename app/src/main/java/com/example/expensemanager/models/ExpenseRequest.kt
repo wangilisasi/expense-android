@@ -3,6 +3,8 @@ package com.example.expensemanager.models
 import com.google.gson.annotations.SerializedName
 
 data class ExpenseRequest(
+    @SerializedName("uuid_id")
+    val id: String,
     @SerializedName("description")
     val description: String,
     @SerializedName("amount")
@@ -16,5 +18,8 @@ data class ExpenseRequest(
     val name: String = description,
     // Some backend variants use "tracker_uuid_id" in request payloads.
     @SerializedName("tracker_uuid_id")
-    val trackerUuidId: String = trackerId
+    val trackerUuidId: String = trackerId,
+    // Compatibility alias for backends that use "client_uuid_id" naming.
+    @SerializedName("client_uuid_id")
+    val clientUuidId: String = id
 )

@@ -33,6 +33,7 @@ class SyncWorker @AssistedInject constructor(
         creations.forEach { expense ->
             try {
                 val request = ExpenseRequest(
+                    id = expense.id,
                     description = expense.description,
                     amount = expense.amount,
                     date = expense.date,

@@ -251,6 +251,7 @@ class ExpenseRepository @Inject constructor(
     private suspend fun trySyncExpense(expense: ExpenseEntity): Boolean {
         return try {
             val request = ExpenseRequest(
+                id = expense.id,
                 description = expense.description,
                 amount = expense.amount,
                 date = expense.date,
