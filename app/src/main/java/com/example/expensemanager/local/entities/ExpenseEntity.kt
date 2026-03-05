@@ -9,6 +9,7 @@ data class ExpenseEntity(
     val description: String,
     val amount: Double,
     val date: String,
+    val category: String,
     val trackerId: String, // Foreign key to the tracker
     val createdAt: String,
     val updatedAt: String,

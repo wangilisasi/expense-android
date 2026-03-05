@@ -8,6 +8,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.expensemanager.api.ExpenseApiService
 import com.example.expensemanager.local.daos.ExpenseDao
+import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseResponse
 import dagger.assisted.Assisted
@@ -34,10 +35,11 @@ class SyncWorker @AssistedInject constructor(
             try {
                 val request = ExpenseRequest(
                     id = expense.id,
-                    description = expense.description,
+                    description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
                     amount = expense.amount,
                     date = expense.date,
-                    trackerId = expense.trackerId
+                    trackerId = expense.trackerId,
+                    category = expense.category
                 )
                 val response = createExpenseOnServer(request, expense.trackerId)
                 if (response.isSuccessful) {
@@ -47,6 +49,7 @@ class SyncWorker @AssistedInject constructor(
                         expenseDao.upsert(
                             expense.copy(
                                 id = serverExpense.id,
+                                category = serverExpense.category,
                                 isSynced = true,
                                 createdAt = serverExpense.createdAt,
                                 updatedAt = serverExpense.updatedAt

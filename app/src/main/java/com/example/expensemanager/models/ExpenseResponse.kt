@@ -13,6 +13,8 @@ data class ExpenseResponse(
     val amount: Double,
     @SerializedName("date")
     val date: String,
+    @SerializedName("category")
+    val category: String = DEFAULT_EXPENSE_CATEGORY,
     @SerializedName("uuid_tracker_id")
     val trackerId: String, // Foreign key to link to an ExpenseTracker
     @SerializedName("created_at")

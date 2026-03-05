@@ -51,6 +51,13 @@ fun MainScreen(rootNavController: NavHostController) {
         ) {
             composable(BottomNavItem.Home.route) {
                 DashBoardScreen(
+                    expenseViewModel = expenseListViewModel,
+                    rootNavController = rootNavController,
+                )
+            }
+            composable(BottomNavItem.Analytics.route) {
+                AnalyticsScreen(
+                    expenseViewModel = expenseListViewModel,
                     rootNavController = rootNavController,
                 )
             }
@@ -82,7 +89,7 @@ fun MainScreen(rootNavController: NavHostController) {
 
 @Composable
 fun BottomBar(navController: NavHostController) {
-    val items = listOf(BottomNavItem.Home, BottomNavItem.BudgetSetup)
+    val items = listOf(BottomNavItem.Home, BottomNavItem.Analytics, BottomNavItem.BudgetSetup)
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination

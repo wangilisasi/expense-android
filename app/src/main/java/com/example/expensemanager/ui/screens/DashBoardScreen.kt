@@ -32,8 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
+import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
 import com.example.expensemanager.models.DailyExpense
 import com.example.expensemanager.models.ExpenseTransaction
+import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 import com.example.expensemanager.navigation.Screen
 import com.example.expensemanager.ui.theme.Green600
 import com.example.expensemanager.ui.theme.Red600
@@ -61,7 +64,7 @@ fun formatTzs(amount: Double): String {
 @Composable
 fun DashBoardScreen(
     modifier: Modifier = Modifier,
-    expenseViewModel: ExpenseListViewModel = hiltViewModel(),
+    expenseViewModel: ExpenseListViewModel,
     authViewModel: AuthViewModel = hiltViewModel(),
     rootNavController: NavHostController,
 ) {
@@ -74,7 +77,17 @@ fun DashBoardScreen(
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var newExpenseDescription by remember { mutableStateOf("") }
     var newExpenseAmount by remember { mutableStateOf("") }
+    val availableCategories = uiState.availableCategories.ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
+    var newExpenseCategory by remember { mutableStateOf(DEFAULT_EXPENSE_CATEGORY) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
     var expenseToDelete by remember { mutableStateOf<ExpenseTransaction?>(null) }
+
+    LaunchedEffect(availableCategories) {
+        if (newExpenseCategory !in availableCategories) {
+            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                ?: availableCategories.first()
+        }
+    }
 
     // Budget values
     val budget = statsUiState.trackerStats?.budget ?: 0.0
@@ -90,6 +103,9 @@ fun DashBoardScreen(
                 showAddExpenseDialog = false
                 newExpenseDescription = ""
                 newExpenseAmount = ""
+                newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                    ?: availableCategories.first()
+                categoryMenuExpanded = false
             },
             title = { Text("Add New Expense") },
             text = {
@@ -97,7 +113,7 @@ fun DashBoardScreen(
                     OutlinedTextField(
                         value = newExpenseDescription,
                         onValueChange = { newExpenseDescription = it },
-                        label = { Text("Item Bought") },
+                        label = { Text("Item Bought (Optional)") },
                         singleLine = true
                     )
                     OutlinedTextField(
@@ -107,24 +123,60 @@ fun DashBoardScreen(
                         keyboardOptions = KeyboardOptions.Default.copy(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         singleLine = true
                     )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = newExpenseCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            trailingIcon = {
+                                IconButton(onClick = { categoryMenuExpanded = !categoryMenuExpanded }) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Select category"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        DropdownMenu(
+                            expanded = categoryMenuExpanded,
+                            onDismissRequest = { categoryMenuExpanded = false }
+                        ) {
+                            availableCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category) },
+                                    onClick = {
+                                        newExpenseCategory = category
+                                        categoryMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val amountDouble = newExpenseAmount.toDoubleOrNull()
-                        if (newExpenseDescription.isNotBlank() && amountDouble != null) {
+                        if (amountDouble != null) {
                             expenseViewModel.addExpense(
-                                newExpenseDescription,
+                                newExpenseDescription.trim(),
                                 amountDouble,
-                                LocalDate.now().toString()
+                                LocalDate.now().toString(),
+                                newExpenseCategory
                             )
                             showAddExpenseDialog = false
                             newExpenseDescription = ""
                             newExpenseAmount = ""
+                            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                                ?: availableCategories.first()
+                            categoryMenuExpanded = false
                         }
                     },
-                    enabled = newExpenseDescription.isNotBlank() && newExpenseAmount.toDoubleOrNull() != null
+                    enabled = newExpenseAmount.toDoubleOrNull() != null
                 ) {
                     Text("Add")
                 }
@@ -135,6 +187,9 @@ fun DashBoardScreen(
                         showAddExpenseDialog = false
                         newExpenseDescription = ""
                         newExpenseAmount = ""
+                        newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                            ?: availableCategories.first()
+                        categoryMenuExpanded = false
                     }
                 ) {
                     Text("Cancel")
@@ -144,10 +199,13 @@ fun DashBoardScreen(
     }
 
     expenseToDelete?.let { expense ->
+        val expenseLabel = expense.name
+            .takeIf { it.isNotBlank() && it != DEFAULT_EXPENSE_DESCRIPTION }
+            ?: expense.category
         AlertDialog(
             onDismissRequest = { expenseToDelete = null },
             title = { Text("Delete expense?") },
-            text = { Text("Delete \"${expense.name}\" (${formatTzs(expense.amount)})?") },
+            text = { Text("Delete \"$expenseLabel\" (${formatTzs(expense.amount)})?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -226,7 +284,12 @@ fun DashBoardScreen(
                         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        item { TopHeader(username = username) }
+                        item {
+                            TopHeader(
+                                username = username,
+                                onLogoutClick = { authViewModel.logout() }
+                            )
+                        }
 
                         item {
                             BudgetSummaryCard(
@@ -254,7 +317,8 @@ fun DashBoardScreen(
 @Composable
 fun TopHeader(
     modifier: Modifier = Modifier,
-    username: String? = null
+    username: String? = null,
+    onLogoutClick: () -> Unit
 ) {
     val monthLabel = remember {
         YearMonth.now().format(
@@ -268,15 +332,24 @@ fun TopHeader(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        username
-            ?.takeIf { it.isNotBlank() }
-            ?.let {
-                Text(
-                    text = "Hi, $it",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            username
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    Text(
+                        text = "Hi, $it",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                ?: Spacer(modifier = Modifier.width(1.dp))
+
+            ThreeDotMenu(onLogoutClick = onLogoutClick)
+        }
 
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -513,16 +586,34 @@ fun DailyExpensesSection(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             day.transactions.forEach { trx ->
+                                val showName = trx.name.isNotBlank() && trx.name != DEFAULT_EXPENSE_DESCRIPTION
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = trx.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        if (showName) {
+                                            Text(
+                                                text = trx.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = trx.category,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        } else {
+                                            Text(
+                                                text = trx.category,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically

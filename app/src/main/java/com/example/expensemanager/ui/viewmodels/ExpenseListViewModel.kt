@@ -4,23 +4,26 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.ExpenseRepository
-import com.example.expensemanager.models.ExpenseResponse
-import com.example.expensemanager.models.ExpenseTrackerResponse
+import com.example.expensemanager.models.CategoryAnalyticsItem
+import com.example.expensemanager.models.CategoryAnalyticsResponse
+import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
 import com.example.expensemanager.models.DailyExpense
 import com.example.expensemanager.models.DailyExpensesResponse
+import com.example.expensemanager.models.ExpenseResponse
+import com.example.expensemanager.models.ExpenseTrackerResponse
 import com.example.expensemanager.models.ExpenseTransaction
+import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 import com.example.expensemanager.models.StatsResponse
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -49,21 +52,29 @@ class ExpenseListViewModel @Inject constructor(
     val navigationEvents = _navigationEvents.asSharedFlow()
 
     private var currentTracker: ExpenseTrackerResponse? = null
+    private var activeTrackerId: String? = null
+    private var expensesObservationJob: Job? = null
+    private var lastRefreshedTrackerId: String? = null
 
     init {
         observeCurrentTrackerAndExpenses()
         refreshTrackersFromNetwork()
+        refreshCategoriesFromNetwork()
     }
 
     private fun observeCurrentTrackerAndExpenses() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            repository.getTrackers().collectLatest { trackers ->
+            repository.getTrackers().collect { trackers ->
                 val tracker = trackers.firstOrNull()
                 currentTracker = tracker
 
                 if (tracker == null) {
+                    activeTrackerId = null
+                    lastRefreshedTrackerId = null
+                    expensesObservationJob?.cancel()
+                    expensesObservationJob = null
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -75,26 +86,34 @@ class ExpenseListViewModel @Inject constructor(
                     _statsUiState.update {
                         it.copy(
                             trackerStats = null,
+                            categoryAnalytics = null,
                             trackerName = "",
                             isLoading = false,
                             errorMessage = null
                         )
                     }
-                    return@collectLatest
+                    return@collect
                 }
+
+                val trackerChanged = activeTrackerId != tracker.id
+                activeTrackerId = tracker.id
 
                 _statsUiState.update {
                     it.copy(
                         trackerStats = buildLocalStats(tracker, _uiState.value.expenses),
+                        categoryAnalytics = buildLocalCategoryAnalytics(tracker.id, _uiState.value.expenses),
                         trackerName = tracker.name,
-                        isLoading = true,
+                        isLoading = trackerChanged,
                         errorMessage = null
                     )
                 }
 
-                coroutineScope {
-                    launch {
+                if (trackerChanged || expensesObservationJob == null) {
+                    _uiState.update { it.copy(isLoading = true, error = null) }
+                    expensesObservationJob?.cancel()
+                    expensesObservationJob = viewModelScope.launch {
                         repository.getExpenses(tracker.id).collect { expenses ->
+                            val trackerName = currentTracker?.name ?: tracker.name
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -106,17 +125,22 @@ class ExpenseListViewModel @Inject constructor(
                             _statsUiState.update { state ->
                                 state.copy(
                                     trackerStats = buildLocalStats(tracker, expenses),
-                                    trackerName = tracker.name,
+                                    categoryAnalytics = buildLocalCategoryAnalytics(tracker.id, expenses),
+                                    trackerName = trackerName,
                                     isLoading = false,
                                     errorMessage = null
                                 )
                             }
                         }
                     }
+                }
 
-                    launch {
+                if (lastRefreshedTrackerId != tracker.id) {
+                    lastRefreshedTrackerId = tracker.id
+                    viewModelScope.launch {
                         runCatching { repository.refreshExpenses(tracker.id) }
                             .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
+                        refreshCategoryAnalyticsFromNetwork(tracker.id)
                     }
                 }
             }
@@ -125,9 +149,30 @@ class ExpenseListViewModel @Inject constructor(
 
     private fun refreshTrackersFromNetwork() {
         viewModelScope.launch {
-            runCatching { repository.syncAllFromBackend() }
-                .onFailure { Log.w(TAG, "Could not sync all data from backend", it) }
+            runCatching { repository.refreshTrackers() }
+                .onFailure { Log.w(TAG, "Could not refresh trackers from backend", it) }
             repository.triggerExpenseSync()
+        }
+    }
+
+    private fun refreshCategoriesFromNetwork() {
+        viewModelScope.launch {
+            val categories = runCatching { repository.getCategories() }
+                .getOrElse { FALLBACK_EXPENSE_CATEGORIES }
+                .ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
+            _uiState.update {
+                it.copy(availableCategories = categories)
+            }
+        }
+    }
+
+    private suspend fun refreshCategoryAnalyticsFromNetwork(trackerId: String) {
+        if (_uiState.value.expenses.any { !it.isSynced }) {
+            return
+        }
+        val analytics = repository.getCategoryAnalyticsForTracker(trackerId) ?: return
+        _statsUiState.update { state ->
+            state.copy(categoryAnalytics = analytics)
         }
     }
 
@@ -164,11 +209,19 @@ class ExpenseListViewModel @Inject constructor(
         }
     }
 
-    fun addExpense(description: String, amount: Double, date: String) {
+    fun addExpense(
+        description: String,
+        amount: Double,
+        date: String,
+        category: String = DEFAULT_EXPENSE_CATEGORY
+    ) {
         viewModelScope.launch {
             try {
                 val trackerId = currentTracker?.id ?: return@launch
-                repository.addExpense(description, amount, date, trackerId)
+                val allowedCategories = _uiState.value.availableCategories
+                val safeCategory = allowedCategories.firstOrNull { it == category }
+                    ?: DEFAULT_EXPENSE_CATEGORY
+                repository.addExpense(description.trim(), amount, date, trackerId, safeCategory)
             } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
                 _uiState.update { it.copy(error = ADD_EXPENSE_ERROR) }
@@ -201,6 +254,7 @@ private fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpen
                         id = expense.id,
                         name = expense.description,
                         amount = expense.amount,
+                        category = expense.category,
                         isSynced = expense.isSynced
                     )
                 }
@@ -243,6 +297,34 @@ private fun buildLocalStats(
         totalExpenditure = totalSpent,
         todaysExpenditure = todaysSpent,
         averageExpenditure = averageExpenditure
+    )
+}
+
+private fun buildLocalCategoryAnalytics(
+    trackerId: String,
+    expenses: List<ExpenseResponse>
+): CategoryAnalyticsResponse {
+    val totalSpent = expenses.sumOf { it.amount }
+    val categories = expenses
+        .groupBy { expense ->
+            expense.category.ifBlank { DEFAULT_EXPENSE_CATEGORY }
+        }
+        .map { (category, categoryExpenses) ->
+            val categoryTotal = categoryExpenses.sumOf { it.amount }
+            val percentage = if (totalSpent > 0.0) (categoryTotal / totalSpent) * 100 else 0.0
+            CategoryAnalyticsItem(
+                category = category,
+                totalAmount = categoryTotal,
+                percentage = percentage,
+                expenseCount = categoryExpenses.size
+            )
+        }
+        .sortedByDescending { it.totalAmount }
+
+    return CategoryAnalyticsResponse(
+        trackerId = trackerId,
+        totalExpenditure = totalSpent,
+        categories = categories
     )
 }
 

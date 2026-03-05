@@ -13,6 +13,8 @@ data class ExpenseRequest(
     val date: String,
     @SerializedName("uuid_tracker_id")
     val trackerId: String,
+    @SerializedName("category")
+    val category: String = DEFAULT_EXPENSE_CATEGORY,
     // Some backend variants use "name" instead of "description".
     @SerializedName("name")
     val name: String = description,

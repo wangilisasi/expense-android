@@ -18,6 +18,6 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     data object Home : BottomNavItem("home_screen", "Home", Icons.Default.Home)
-    data object Reports : BottomNavItem("reports_screen", "Reports", Icons.Default.Info)
+    data object Analytics : BottomNavItem("analytics_screen", "Analytics", Icons.Default.Info)
     data object BudgetSetup : BottomNavItem("budget_setup_screen", "Budget", Icons.Default.Info)
 }

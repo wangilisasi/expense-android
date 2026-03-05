@@ -9,7 +9,7 @@ import com.example.expensemanager.local.entities.ExpenseEntity
 import com.example.expensemanager.local.entities.ExpenseTrackerEntity
 import com.example.expensemanager.local.entities.UserEntity
 
-@Database(entities = [ExpenseEntity::class,ExpenseTrackerEntity::class,UserEntity::class], version = 1)
+@Database(entities = [ExpenseEntity::class,ExpenseTrackerEntity::class,UserEntity::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun expenseTrackerDao(): ExpenseTrackerDao

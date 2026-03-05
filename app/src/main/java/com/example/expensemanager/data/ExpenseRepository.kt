@@ -13,10 +13,14 @@ import com.example.expensemanager.local.daos.ExpenseTrackerDao
 import com.example.expensemanager.local.entities.ExpenseEntity
 import com.example.expensemanager.local.entities.ExpenseTrackerEntity
 import com.example.expensemanager.local.work.SyncWorker
+import com.example.expensemanager.models.CategoryAnalyticsResponse
+import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
+import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.models.ExpenseTrackerResponse
+import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -61,6 +65,20 @@ class ExpenseRepository @Inject constructor(
                 Log.w(TAG, "Could not sync expenses for tracker ${tracker.id}", e)
             }
         }
+    }
+
+    suspend fun getCategories(): List<String> {
+        return runCatching { apiService.getCategories() }
+            .getOrElse { FALLBACK_EXPENSE_CATEGORIES }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
+    }
+
+    suspend fun getCategoryAnalyticsForTracker(trackerId: String): CategoryAnalyticsResponse? {
+        return runCatching { apiService.getCategoryAnalyticsForTracker(trackerId) }
+            .onFailure { Log.w(TAG, "Could not load category analytics for tracker $trackerId", it) }
+            .getOrNull()
     }
 
     suspend fun createTracker(
@@ -186,6 +204,7 @@ class ExpenseRepository @Inject constructor(
                     description = entity.description,
                     amount = entity.amount,
                     date = entity.date,
+                    category = entity.category,
                     trackerId = entity.trackerId,
                     createdAt = entity.createdAt,
                     updatedAt = entity.updatedAt,
@@ -195,12 +214,19 @@ class ExpenseRepository @Inject constructor(
         }
     }
 
-    suspend fun addExpense(description: String, amount: Double, date: String, trackerId: String) {
+    suspend fun addExpense(
+        description: String,
+        amount: Double,
+        date: String,
+        trackerId: String,
+        category: String = DEFAULT_EXPENSE_CATEGORY
+    ) {
         val newExpense = ExpenseEntity(
             id = UUID.randomUUID().toString(),
             description = description,
             amount = amount,
             date = date,
+            category = category,
             trackerId = trackerId,
             isSynced = false,
             isDeleted = false,
@@ -252,10 +278,11 @@ class ExpenseRepository @Inject constructor(
         return try {
             val request = ExpenseRequest(
                 id = expense.id,
-                description = expense.description,
+                description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
                 amount = expense.amount,
                 date = expense.date,
-                trackerId = expense.trackerId
+                trackerId = expense.trackerId,
+                category = expense.category
             )
             val response = createExpenseOnServer(request, expense.trackerId)
             if (response.isSuccessful) {
@@ -342,6 +369,7 @@ private fun ExpenseResponse.toEntity(): ExpenseEntity {
         description = description,
         amount = amount,
         date = date,
+        category = category,
         trackerId = trackerId,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -351,5 +379,5 @@ private fun ExpenseResponse.toEntity(): ExpenseEntity {
 }
 
 private fun ExpenseEntity.signature(): String {
-    return "$trackerId|$date|$amount|$description"
+    return "$trackerId|$date|$amount|$description|$category"
 }

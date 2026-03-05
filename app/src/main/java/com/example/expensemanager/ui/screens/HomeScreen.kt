@@ -81,11 +81,13 @@ fun HomeScreen(
                         Text(text = uiState.error!!)
                     } else {
                         ExpenseInputForm(
-                            onFormSubmit = { itemName, amount ->
+                            categories = uiState.availableCategories,
+                            onFormSubmit = { itemName, amount, category ->
                                 expenseViewModel.addExpense(
                                     itemName,
                                     amount.toDoubleOrNull() ?: 0.0,
-                                    LocalDate.now().toString()
+                                    LocalDate.now().toString(),
+                                    category
                                 )
                             }
                         )

@@ -9,5 +9,7 @@ data class ExpenseTransaction(
     val name: String,
     @SerializedName("amount")
     val amount: Double,
+    @SerializedName("category")
+    val category: String = DEFAULT_EXPENSE_CATEGORY,
     val isSynced: Boolean = true
 )

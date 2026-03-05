@@ -2,6 +2,8 @@ package com.example.expensemanager.ui.screens
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -12,28 +14,34 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 
 @Composable
 fun ThreeDotMenu(onLogoutClick: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
 
-    IconButton(onClick = { showMenu = !showMenu }) {
-        Icon(
-            imageVector = Icons.Filled.MoreVert,
-            contentDescription = "More options"
-        )
-    }
-    DropdownMenu(
-        expanded = showMenu,
-        onDismissRequest = { showMenu = false }
+    Box(
+        modifier = Modifier.wrapContentSize(Alignment.TopEnd)
     ) {
-        DropdownMenuItem(
-            text = { Text("Logout") },
-            onClick = {
-                showMenu = false
-                onLogoutClick()
-            }
-        )
-        // Add other menu items here if needed
+        IconButton(onClick = { showMenu = !showMenu }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = "More options"
+            )
+        }
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Logout") },
+                onClick = {
+                    showMenu = false
+                    onLogoutClick()
+                }
+            )
+            // Add other menu items here if needed
+        }
     }
 }
