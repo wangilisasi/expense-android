@@ -6,6 +6,7 @@ import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.models.ExpenseTrackerResponse
+import com.example.expensemanager.models.TrackerSummaryResponse
 
 import retrofit2.Response
 import retrofit2.http.*
@@ -15,7 +16,10 @@ interface ExpenseApiService {
     // --- ExpenseTracker Endpoints ---
 
     @GET("trackers")
-    suspend fun getTrackers(): List<ExpenseTrackerResponse>
+    suspend fun getTrackers(): List<TrackerSummaryResponse>
+
+    @GET("trackers/active")
+    suspend fun getActiveTracker(): Response<TrackerSummaryResponse>
 
     @GET("trackers/{tracker_uuid_id}")
     suspend fun getTrackerDetails(@Path("tracker_uuid_id") trackerId: String): ExpenseTrackerResponse

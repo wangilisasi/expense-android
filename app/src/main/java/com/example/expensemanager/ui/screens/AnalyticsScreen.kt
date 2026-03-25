@@ -60,7 +60,9 @@ fun AnalyticsScreen(
     val authState by authViewModel.authState.collectAsState()
     val username by authViewModel.username.collectAsState()
     val statsUiState by expenseViewModel.statsUiState.collectAsState()
+    val uiState by expenseViewModel.uiState.collectAsState()
     val categoryItems = statsUiState.categoryAnalytics?.categories.orEmpty()
+    val hasActiveBudget = uiState.activeTracker != null
 
     LaunchedEffect(authState) {
         if (authState == AuthState.Unauthenticated) {
@@ -94,6 +96,20 @@ fun AnalyticsScreen(
                     Text(
                         text = statsUiState.errorMessage ?: "Failed to load analytics",
                         color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            !hasActiveBudget -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Create an active budget to view analytics.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

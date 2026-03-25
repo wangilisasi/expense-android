@@ -12,9 +12,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.expensemanager.models.RegisterRequest
-import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
-
 
 import kotlin.text.contains
 
@@ -27,15 +25,11 @@ fun RegisterScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    val authState by viewModel.authState.collectAsState()
     val errorEvent by viewModel.errorEvents.collectAsState()
     val registrationInProgress by viewModel.registrationInProgress.collectAsState()
 
-
-
-
-    LaunchedEffect(authState) {
-        if (authState == AuthState.Authenticated) {
+    LaunchedEffect(viewModel) {
+        viewModel.registrationEvents.collect {
             onRegistered()
         }
     }

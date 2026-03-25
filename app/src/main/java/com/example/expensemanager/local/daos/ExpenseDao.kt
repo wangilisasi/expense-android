@@ -38,4 +38,7 @@ interface ExpenseDao {
     // 2. Worker action: After successful API call, delete it permanently.
     @Query("DELETE FROM expenses WHERE id = :expenseId")
     suspend fun deletePermanently(expenseId: String)
+
+    @Query("DELETE FROM expenses")
+    suspend fun clearAll()
 }

@@ -13,6 +13,7 @@ import com.example.expensemanager.local.daos.ExpenseTrackerDao
 import com.example.expensemanager.local.entities.ExpenseEntity
 import com.example.expensemanager.local.entities.ExpenseTrackerEntity
 import com.example.expensemanager.local.work.SyncWorker
+import com.example.expensemanager.models.CategoryAnalyticsItem
 import com.example.expensemanager.models.CategoryAnalyticsResponse
 import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
 import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
@@ -21,6 +22,9 @@ import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.models.ExpenseTrackerResponse
 import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
+import com.example.expensemanager.models.TrackerSummaryResponse
+import com.example.expensemanager.models.normalizeExpenseCategories
+import com.example.expensemanager.models.normalizeExpenseCategory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -31,6 +35,13 @@ import javax.inject.Inject
 private const val TAG = "ExpenseRepository"
 private const val EXPENSE_SYNC_WORK = "expense_sync_work"
 private const val UNKNOWN_USER_ID = ""
+private const val OVERLAP_BUDGET_MESSAGE =
+    "These budget dates overlap an existing budget. Choose a different date range."
+
+sealed interface ActiveTrackerResult {
+    data class Found(val tracker: TrackerSummaryResponse) : ActiveTrackerResult
+    data object None : ActiveTrackerResult
+}
 
 class ExpenseRepository @Inject constructor(
     private val apiService: ExpenseApiService,
@@ -38,19 +49,39 @@ class ExpenseRepository @Inject constructor(
     private val expenseTrackerDao: ExpenseTrackerDao,
     @ApplicationContext private val context: Context,
 ) {
-    fun getTrackers(): Flow<List<ExpenseTrackerResponse>> {
+    fun getTrackers(): Flow<List<TrackerSummaryResponse>> {
         return expenseTrackerDao.getAllTrackers().map { entities ->
-            entities.map { entity -> entity.toResponse() }
+            entities.map { entity -> entity.toSummary() }
         }
-    }
-
-    suspend fun getLatestTracker(): ExpenseTrackerResponse? {
-        return expenseTrackerDao.getLatestTracker()?.toResponse()
     }
 
     suspend fun refreshTrackers() {
         val trackers = apiService.getTrackers()
         expenseTrackerDao.replaceAll(trackers.map { it.toEntity(isSynced = true) })
+    }
+
+    suspend fun clearLocalData() {
+        expenseDao.clearAll()
+        expenseTrackerDao.clearAll()
+    }
+
+    suspend fun getActiveTracker(): ActiveTrackerResult {
+        val response = apiService.getActiveTracker()
+        if (response.isSuccessful) {
+            val tracker = response.body()
+                ?: throw ApiException(500, "Active budget response was empty")
+            expenseTrackerDao.upsert(tracker.toEntity(isSynced = true))
+            return ActiveTrackerResult.Found(tracker)
+        }
+
+        if (response.code() == 404) {
+            return ActiveTrackerResult.None
+        }
+
+        throw ApiException(
+            code = response.code(),
+            message = response.errorMessage("Failed to load active budget")
+        )
     }
 
     suspend fun syncAllFromBackend() {
@@ -70,8 +101,8 @@ class ExpenseRepository @Inject constructor(
     suspend fun getCategories(): List<String> {
         return runCatching { apiService.getCategories() }
             .getOrElse { FALLBACK_EXPENSE_CATEGORIES }
+            .let(::normalizeExpenseCategories)
             .filter { it.isNotBlank() }
-            .distinct()
             .ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
     }
 
@@ -79,6 +110,27 @@ class ExpenseRepository @Inject constructor(
         return runCatching { apiService.getCategoryAnalyticsForTracker(trackerId) }
             .onFailure { Log.w(TAG, "Could not load category analytics for tracker $trackerId", it) }
             .getOrNull()
+            ?.let { analytics ->
+                val totalExpenditure = analytics.totalExpenditure
+                val mergedCategories = analytics.categories
+                    .groupBy { item -> normalizeExpenseCategory(item.category) }
+                    .map { (category, items) ->
+                        val totalAmount = items.sumOf { it.totalAmount }
+                        CategoryAnalyticsItem(
+                            category = category,
+                            totalAmount = totalAmount,
+                            percentage = if (totalExpenditure > 0.0) {
+                                (totalAmount / totalExpenditure) * 100.0
+                            } else {
+                                0.0
+                            },
+                            expenseCount = items.sumOf { it.expenseCount }
+                        )
+                    }
+                    .sortedByDescending { it.totalAmount }
+
+                analytics.copy(categories = mergedCategories)
+            }
     }
 
     suspend fun createTracker(
@@ -86,7 +138,7 @@ class ExpenseRepository @Inject constructor(
         budget: Double,
         startDate: String,
         endDate: String
-    ): ExpenseTrackerResponse {
+    ): TrackerSummaryResponse {
         val response = apiService.createTracker(
             ExpenseTrackerRequest(
                 name = name,
@@ -98,13 +150,18 @@ class ExpenseRepository @Inject constructor(
         )
 
         if (!response.isSuccessful) {
-            throw IllegalStateException("Failed to create tracker: ${response.code()}")
+            throw ApiException(
+                code = response.code(),
+                message = trackerSaveErrorMessage(response, "Failed to create budget")
+            )
         }
-        val createdTracker = response.body()
-            ?: throw IllegalStateException("Failed to create tracker: ${response.code()}")
 
-        expenseTrackerDao.upsert(createdTracker.toEntity(isSynced = response.isSuccessful))
-        return createdTracker
+        val createdTracker = response.body()
+            ?: throw ApiException(500, "Budget was created but no tracker was returned")
+
+        val summary = createdTracker.toSummary()
+        expenseTrackerDao.upsert(summary.toEntity(isSynced = true))
+        return summary
     }
 
     suspend fun updateTracker(
@@ -113,7 +170,7 @@ class ExpenseRepository @Inject constructor(
         budget: Double,
         startDate: String,
         endDate: String
-    ): ExpenseTrackerResponse {
+    ): TrackerSummaryResponse {
         val request = ExpenseTrackerRequest(
             name = name,
             description = name,
@@ -132,22 +189,22 @@ class ExpenseRepository @Inject constructor(
                         expenseTrackerRequest = request
                     )
                 }
+
                 400, 422 -> {
                     updateTrackerSnakeCase(trackerId, name, budget, startDate, endDate)
                 }
+
                 else -> patchResponse
             }
         }
 
         if (!response.isSuccessful) {
-            val detail = response.errorBody()?.string().orEmpty()
-            val message = if (detail.isBlank()) {
-                "Failed to update tracker: ${response.code()}"
-            } else {
-                "Failed to update tracker: ${response.code()} - $detail"
-            }
-            throw IllegalStateException(message)
+            throw ApiException(
+                code = response.code(),
+                message = trackerSaveErrorMessage(response, "Failed to update budget")
+            )
         }
+
         val updatedTracker = response.body()
             ?: runCatching { apiService.getTrackerDetails(trackerId) }
                 .getOrElse {
@@ -162,8 +219,9 @@ class ExpenseRepository @Inject constructor(
                     )
                 }
 
-        expenseTrackerDao.upsert(updatedTracker.toEntity(isSynced = response.isSuccessful))
-        return updatedTracker
+        val summary = updatedTracker.toSummary()
+        expenseTrackerDao.upsert(summary.toEntity(isSynced = true))
+        return summary
     }
 
     private suspend fun updateTrackerSnakeCase(
@@ -192,6 +250,7 @@ class ExpenseRepository @Inject constructor(
                     expenseTrackerRequest = snakePayload
                 )
             }
+
             else -> patchResponse
         }
     }
@@ -204,7 +263,7 @@ class ExpenseRepository @Inject constructor(
                     description = entity.description,
                     amount = entity.amount,
                     date = entity.date,
-                    category = entity.category,
+                    category = normalizeExpenseCategory(entity.category),
                     trackerId = entity.trackerId,
                     createdAt = entity.createdAt,
                     updatedAt = entity.updatedAt,
@@ -221,12 +280,13 @@ class ExpenseRepository @Inject constructor(
         trackerId: String,
         category: String = DEFAULT_EXPENSE_CATEGORY
     ) {
+        val normalizedCategory = normalizeExpenseCategory(category)
         val newExpense = ExpenseEntity(
             id = UUID.randomUUID().toString(),
             description = description,
             amount = amount,
             date = date,
-            category = category,
+            category = normalizedCategory,
             trackerId = trackerId,
             isSynced = false,
             isDeleted = false,
@@ -282,7 +342,7 @@ class ExpenseRepository @Inject constructor(
                 amount = expense.amount,
                 date = expense.date,
                 trackerId = expense.trackerId,
-                category = expense.category
+                category = normalizeExpenseCategory(expense.category)
             )
             val response = createExpenseOnServer(request, expense.trackerId)
             if (response.isSuccessful) {
@@ -291,7 +351,12 @@ class ExpenseRepository @Inject constructor(
                     expenseDao.deletePermanently(expense.id)
                     expenseDao.upsert(serverExpense.toEntity())
                 } else {
-                    expenseDao.upsert(expense.copy(isSynced = true))
+                    expenseDao.upsert(
+                        expense.copy(
+                            category = normalizeExpenseCategory(expense.category),
+                            isSynced = true
+                        )
+                    )
                 }
                 true
             } else {
@@ -335,15 +400,26 @@ class ExpenseRepository @Inject constructor(
 
         expenseDao.upsertAll(serverEntities)
     }
+
+    private fun trackerSaveErrorMessage(
+        response: Response<*>,
+        fallback: String
+    ): String {
+        return if (response.code() == 409) {
+            OVERLAP_BUDGET_MESSAGE
+        } else {
+            response.errorMessage(fallback)
+        }
+    }
 }
 
-private fun ExpenseTrackerResponse.toEntity(isSynced: Boolean): ExpenseTrackerEntity {
+private fun TrackerSummaryResponse.toEntity(isSynced: Boolean): ExpenseTrackerEntity {
     return ExpenseTrackerEntity(
         id = id,
         userId = UNKNOWN_USER_ID,
         name = name,
         budget = budget,
-        description = description,
+        description = description.orEmpty(),
         startDate = startDate,
         endDate = endDate,
         isSynced = isSynced,
@@ -351,15 +427,25 @@ private fun ExpenseTrackerResponse.toEntity(isSynced: Boolean): ExpenseTrackerEn
     )
 }
 
-private fun ExpenseTrackerEntity.toResponse(): ExpenseTrackerResponse {
-    return ExpenseTrackerResponse(
+private fun ExpenseTrackerEntity.toSummary(): TrackerSummaryResponse {
+    return TrackerSummaryResponse(
+        id = id,
+        name = name,
+        description = description.ifBlank { null },
+        startDate = startDate,
+        endDate = endDate,
+        budget = budget
+    )
+}
+
+private fun ExpenseTrackerResponse.toSummary(): TrackerSummaryResponse {
+    return TrackerSummaryResponse(
         id = id,
         name = name,
         description = description,
         startDate = startDate,
         endDate = endDate,
-        budget = budget,
-        expenses = emptyList()
+        budget = budget
     )
 }
 
@@ -369,7 +455,7 @@ private fun ExpenseResponse.toEntity(): ExpenseEntity {
         description = description,
         amount = amount,
         date = date,
-        category = category,
+        category = normalizeExpenseCategory(category),
         trackerId = trackerId,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -379,5 +465,5 @@ private fun ExpenseResponse.toEntity(): ExpenseEntity {
 }
 
 private fun ExpenseEntity.signature(): String {
-    return "$trackerId|$date|$amount|$description|$category"
+    return "$trackerId|$date|$amount|$description|${normalizeExpenseCategory(category)}"
 }

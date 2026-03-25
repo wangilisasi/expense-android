@@ -68,7 +68,7 @@ class TokenManager @Inject constructor(@ApplicationContext private val context: 
             }
             // Check if the token is expired, applying a safety buffer
             // to account for clock skew and network latency.
-            val bufferDate = Date(System.currentTimeMillis() - bufferInSeconds * 1000)
+            val bufferDate = Date(System.currentTimeMillis() + bufferInSeconds * 1000)
             return expiresAt.before(bufferDate)
         } catch (e: Exception) {
             // Any exception during decoding means the token is invalid.
@@ -78,5 +78,4 @@ class TokenManager @Inject constructor(@ApplicationContext private val context: 
         }
     }
 }
-
 

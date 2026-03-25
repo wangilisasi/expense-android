@@ -24,10 +24,15 @@ class AuthRepository @Inject constructor(
                 tokenManager.saveToken(loginResponse.accessToken)
                 Result.success(loginResponse)
             } else {
-                Result.failure(Exception("Login failed: ${response.code()}"))
+                Result.failure(
+                    ApiException(
+                        code = response.code(),
+                        message = response.errorMessage("Login failed")
+                    )
+                )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.toUserFacingMessage("Login failed")))
         }
     }
 
@@ -38,10 +43,15 @@ class AuthRepository @Inject constructor(
                 val registerResponse = response.body()!!
                 Result.success(registerResponse)
             } else {
-                Result.failure(Exception("Registration failed: ${response.errorBody()?.string()}"))
+                Result.failure(
+                    ApiException(
+                        code = response.code(),
+                        message = response.errorMessage("Registration failed")
+                    )
+                )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.toUserFacingMessage("Registration failed")))
         }
     }
 

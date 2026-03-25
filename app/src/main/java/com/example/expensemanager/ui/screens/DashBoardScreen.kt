@@ -17,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -34,12 +39,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
 import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
+import com.example.expensemanager.models.DEFAULT_EXPENSE_SELECTION_CATEGORY
 import com.example.expensemanager.models.DailyExpense
 import com.example.expensemanager.models.ExpenseTransaction
 import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 import com.example.expensemanager.navigation.Screen
 import com.example.expensemanager.ui.theme.Green600
 import com.example.expensemanager.ui.theme.Red600
+import com.example.expensemanager.ui.theme.Slate600
 import com.example.expensemanager.ui.theme.Slate700
 import com.example.expensemanager.ui.theme.Slate900
 import com.example.expensemanager.ui.viewmodels.AuthState
@@ -50,6 +57,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 // ✅ Helper function for formatting TZS with space
 fun formatTzs(amount: Double): String {
@@ -58,6 +66,14 @@ fun formatTzs(amount: Double): String {
         minimumFractionDigits = 0
     }
     return "TZS " + numberFormat.format(amount)
+}
+
+fun formatTzsAmountOnly(amount: Double): String {
+    val numberFormat = NumberFormat.getNumberInstance(Locale("en", "TZ")).apply {
+        maximumFractionDigits = 0
+        minimumFractionDigits = 0
+    }
+    return numberFormat.format(amount)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,20 +88,28 @@ fun DashBoardScreen(
     val authState by authViewModel.authState.collectAsState()
     val username by authViewModel.username.collectAsState()
     val statsUiState by expenseViewModel.statsUiState.collectAsState()
+    val hasActiveBudget = uiState.activeTracker != null
 
     // State for the "Add Expense" dialog
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var newExpenseDescription by remember { mutableStateOf("") }
     var newExpenseAmount by remember { mutableStateOf("") }
+    var pendingDeleteExpense by remember { mutableStateOf<ExpenseTransaction?>(null) }
     val availableCategories = uiState.availableCategories.ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
-    var newExpenseCategory by remember { mutableStateOf(DEFAULT_EXPENSE_CATEGORY) }
+    var newExpenseCategory by remember { mutableStateOf(DEFAULT_EXPENSE_SELECTION_CATEGORY) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
-    var expenseToDelete by remember { mutableStateOf<ExpenseTransaction?>(null) }
+    val amountFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(availableCategories) {
         if (newExpenseCategory !in availableCategories) {
-            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                 ?: availableCategories.first()
+        }
+    }
+    LaunchedEffect(showAddExpenseDialog) {
+        if (showAddExpenseDialog) {
+            amountFocusRequester.requestFocus()
         }
     }
 
@@ -99,36 +123,61 @@ fun DashBoardScreen(
     // ========= Add Expense Dialog =========
     if (showAddExpenseDialog) {
         AlertDialog(
+            modifier = Modifier
+                .shadow(14.dp, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp),
             onDismissRequest = {
                 showAddExpenseDialog = false
                 newExpenseDescription = ""
                 newExpenseAmount = ""
-                newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                    ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                     ?: availableCategories.first()
                 categoryMenuExpanded = false
             },
+            shape = RoundedCornerShape(14.dp),
+            tonalElevation = 8.dp,
             title = { Text("Add New Expense") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = newExpenseDescription,
-                        onValueChange = { newExpenseDescription = it },
-                        label = { Text("Item Bought (Optional)") },
-                        singleLine = true
-                    )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 1) Amount
                     OutlinedTextField(
                         value = newExpenseAmount,
                         onValueChange = { newExpenseAmount = it },
                         label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        singleLine = true
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(amountFocusRequester)
                     )
+
+                    // 2) Category
                     Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = newExpenseCategory,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Category") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null
+                                )
+                            },
                             trailingIcon = {
                                 IconButton(onClick = { categoryMenuExpanded = !categoryMenuExpanded }) {
                                     Icon(
@@ -155,6 +204,21 @@ fun DashBoardScreen(
                             }
                         }
                     }
+
+                    // 3) Description (optional)
+                    OutlinedTextField(
+                        value = newExpenseDescription,
+                        onValueChange = { newExpenseDescription = it },
+                        label = { Text("Description (optional)") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -171,7 +235,8 @@ fun DashBoardScreen(
                             showAddExpenseDialog = false
                             newExpenseDescription = ""
                             newExpenseAmount = ""
-                            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                                ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                                 ?: availableCategories.first()
                             categoryMenuExpanded = false
                         }
@@ -187,7 +252,8 @@ fun DashBoardScreen(
                         showAddExpenseDialog = false
                         newExpenseDescription = ""
                         newExpenseAmount = ""
-                        newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+                        newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                            ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                             ?: availableCategories.first()
                         categoryMenuExpanded = false
                     }
@@ -198,26 +264,31 @@ fun DashBoardScreen(
         )
     }
 
-    expenseToDelete?.let { expense ->
-        val expenseLabel = expense.name
-            .takeIf { it.isNotBlank() && it != DEFAULT_EXPENSE_DESCRIPTION }
-            ?: expense.category
+    pendingDeleteExpense?.let { expense ->
         AlertDialog(
-            onDismissRequest = { expenseToDelete = null },
-            title = { Text("Delete expense?") },
-            text = { Text("Delete \"$expenseLabel\" (${formatTzs(expense.amount)})?") },
+            onDismissRequest = { pendingDeleteExpense = null },
+            title = { Text("Delete Expense?") },
+            text = {
+                Text(
+                    text = "This will permanently delete ${formatTzs(expense.amount)} from ${expense.category}.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         expenseViewModel.deleteExpense(expense.id)
-                        expenseToDelete = null
+                        pendingDeleteExpense = null
                     }
                 ) {
-                    Text("Delete")
+                    Text(
+                        text = "Delete",
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { expenseToDelete = null }) {
+                TextButton(onClick = { pendingDeleteExpense = null }) {
                     Text("Cancel")
                 }
             }
@@ -238,16 +309,33 @@ fun DashBoardScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddExpenseDialog = true },
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Expense",
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
+            if (hasActiveBudget) {
+                Surface(
+                    onClick = { showAddExpenseDialog = true },
+                    modifier = Modifier.height(44.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Slate600,
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Expense",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = "Add Expense",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
             }
         }
     ) { innerPadding ->
@@ -274,6 +362,28 @@ fun DashBoardScreen(
                 }
                 uiState.error != null -> {
                     ErrorContent(uiState.error)
+                }
+                !hasActiveBudget -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "No active budget for today.",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Open the Budget tab to create a new budget and keep using this account.",
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
                 }
                 else -> {
                     LazyColumn(
@@ -304,7 +414,9 @@ fun DashBoardScreen(
                         item {
                             DailyExpensesSection(
                                 dailyExpenses = uiState.dailyExpenses.daily_expenses,
-                                onDeleteClick = { expenseToDelete = it }
+                                onDeleteClick = { expense ->
+                                    pendingDeleteExpense = expense
+                                }
                             )
                         }
                     }
@@ -329,8 +441,8 @@ fun TopHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -352,7 +464,7 @@ fun TopHeader(
         }
 
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
             shadowElevation = 1.dp,
@@ -362,13 +474,13 @@ fun TopHeader(
             )
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
                     text = monthLabel,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -386,10 +498,25 @@ fun BudgetSummaryCard(
     averageExpenditure: Double = 0.0
 ) {
     val remainingColor = if (remaining >= 0) Color.White else Color(0xFFFFCDD2)
+    val usageFraction = if (budget > 0) (totalSpent / budget).toFloat().coerceIn(0f, 1f) else 0f
+    val remainingFraction = if (budget > 0) (remaining / budget).toFloat().coerceIn(0f, 1f) else 0f
+    val remainingPercentage = (remainingFraction * 100).roundToInt()
+    val usageColor = when {
+        budget <= 0 -> Color.White.copy(alpha = 0.7f)
+        remaining <= 0 -> Color(0xFFF44336)
+        remainingFraction > 0.5f -> Color(0xFF4CAF50)
+        remainingFraction > 0.2f -> Color(0xFFFFC107)
+        else -> Color(0xFFF44336)
+    }
+    val budgetContext = if (budget > 0) {
+        "$remainingPercentage% left of ${formatTzs(budget)} budget"
+    } else {
+        "No monthly budget set"
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
@@ -399,52 +526,153 @@ fun BudgetSummaryCard(
                         colors = listOf(Slate900, Slate700)
                     )
                 )
-                .padding(22.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Text(
                 text = "Remaining",
                 color = Color.White.copy(alpha = 0.82f),
-                style = MaterialTheme.typography.titleSmall
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 18.sp,
+                    lineHeight = 22.sp
+                )
             )
             Text(
                 formatTzs(remaining),
                 color = remainingColor,
-                fontSize = 46.sp,
+                fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = 52.sp,
-                modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)
+                lineHeight = 40.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
             )
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.22f),
-                thickness = 1.dp,
-                modifier = Modifier.padding(bottom = 12.dp)
+            Text(
+                text = budgetContext,
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp
+                ),
+                modifier = Modifier.padding(bottom = 10.dp)
             )
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryRow("Budget", formatTzs(budget))
-                SummaryRow("Total Spent", formatTzs(totalSpent))
-                SummaryRow("Today's Spend", formatTzs(todaysSpend))
-                SummaryRow("Target Spend", formatTzs(targetSpend))
-                SummaryRow("Average Spend", formatTzs(averageExpenditure))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(usageFraction)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(usageColor)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White.copy(alpha = 0.035f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = "All amounts in TZS",
+                        color = Color.White.copy(alpha = 0.58f),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        BudgetMetricCell(
+                            modifier = Modifier.weight(1f),
+                            label = "Spent",
+                            amount = formatTzsAmountOnly(totalSpent)
+                        )
+                        BudgetMetricCell(
+                            modifier = Modifier.weight(1f),
+                            label = "Today",
+                            amount = formatTzsAmountOnly(todaysSpend)
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        thickness = 1.dp,
+                        color = Color.White.copy(alpha = 0.08f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        BudgetMetricCell(
+                            modifier = Modifier.weight(1f),
+                            label = "Daily target",
+                            amount = formatTzsAmountOnly(targetSpend),
+                            compact = true
+                        )
+                        BudgetMetricCell(
+                            modifier = Modifier.weight(1f),
+                            label = "Daily average",
+                            amount = formatTzsAmountOnly(averageExpenditure),
+                            compact = true
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun SummaryRow(label: String, amount: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun BudgetMetricCell(
+    modifier: Modifier = Modifier,
+    label: String,
+    amount: String,
+    compact: Boolean = false
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.84f),
-            style = MaterialTheme.typography.bodyLarge
+            color = Color.White.copy(alpha = 0.72f),
+            style = if (compact) {
+                MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp
+                )
+            } else {
+                MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp
+                )
+            }
         )
         Text(
             text = amount,
             color = Color.White,
-            style = MaterialTheme.typography.bodyLarge,
+            style = if (compact) {
+                MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp
+                )
+            } else {
+                MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 18.sp,
+                    lineHeight = 22.sp
+                )
+            },
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -466,6 +694,9 @@ fun DailyExpensesSection(
     dailyExpenses: List<DailyExpense>,
     onDeleteClick: (ExpenseTransaction) -> Unit
 ) {
+    var showAllDays by remember(dailyExpenses.size) { mutableStateOf(false) }
+    val visibleDailyExpenses = if (showAllDays) dailyExpenses else dailyExpenses.take(5)
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -480,7 +711,7 @@ fun DailyExpensesSection(
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "${dailyExpenses.size} day(s)",
+                text = "${visibleDailyExpenses.size} of ${dailyExpenses.size} day(s)",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -489,7 +720,7 @@ fun DailyExpensesSection(
         if (dailyExpenses.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
             ) {
@@ -503,7 +734,7 @@ fun DailyExpensesSection(
             return
         }
 
-        dailyExpenses.forEachIndexed { index, day ->
+        visibleDailyExpenses.forEachIndexed { index, day ->
             var expanded by remember { mutableStateOf(index == 0) } // first one (today) expanded by default
             val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "")
             val isToday = day.date == LocalDate.now().toString()
@@ -513,7 +744,7 @@ fun DailyExpensesSection(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .animateContentSize(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = if (expanded) 4.dp else 1.dp)
@@ -588,7 +819,9 @@ fun DailyExpensesSection(
                             day.transactions.forEach { trx ->
                                 val showName = trx.name.isNotBlank() && trx.name != DEFAULT_EXPENSE_DESCRIPTION
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -645,6 +878,17 @@ fun DailyExpensesSection(
                         }
                     }
                 }
+            }
+        }
+
+        if (dailyExpenses.size > 5) {
+            TextButton(
+                onClick = { showAllDays = !showAllDays },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+            ) {
+                Text(if (showAllDays) "Show Less" else "Show More")
             }
         }
     }

@@ -1,6 +1,5 @@
 package com.example.expensemanager.ui.viewmodels
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.AuthRepository
@@ -12,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -41,31 +40,31 @@ class AuthViewModel @Inject constructor(
     private val _registrationInProgress = MutableStateFlow(false)
     val registrationInProgress: StateFlow<Boolean> = _registrationInProgress.asStateFlow()
 
-//    private val _registrationComplete = MutableStateFlow(false)
-//    val registrationComplete: StateFlow<Boolean> = _registrationComplete.asStateFlow()
-
     private val _errorEvents = MutableStateFlow<String?>(null)
     val errorEvents: StateFlow<String?> = _errorEvents.asStateFlow()
 
+    private val _registrationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val registrationEvents = _registrationEvents.asSharedFlow()
+
 
     init {
-        checkInitialAuthState()
+        observeAuthState()
     }
 
-    private fun checkInitialAuthState() {
+    private fun observeAuthState() {
         viewModelScope.launch {
-            val token = tokenManager.getToken().firstOrNull() // Check if a token exists
-            if (token != null && !tokenManager.isTokenExpired(token)) {
-                _authState.value = AuthState.Authenticated
-                _username.value = tokenManager.getUsernameFromToken(token)
-            } else if (token != null && tokenManager.isTokenExpired(token)) {
-                tokenManager.clearToken()
-                _authState.value = AuthState.Unauthenticated
-                _username.value = null
-            } else {
-                _authState.value = AuthState.Unauthenticated
-                _username.value = null
-
+            tokenManager.getToken().collectLatest { token ->
+                if (token != null && !tokenManager.isTokenExpired(token)) {
+                    _authState.value = AuthState.Authenticated
+                    _username.value = tokenManager.getUsernameFromToken(token)
+                } else if (token != null && tokenManager.isTokenExpired(token)) {
+                    tokenManager.clearToken()
+                    _authState.value = AuthState.Unauthenticated
+                    _username.value = null
+                } else {
+                    _authState.value = AuthState.Unauthenticated
+                    _username.value = null
+                }
             }
         }
     }
@@ -97,10 +96,9 @@ class AuthViewModel @Inject constructor(
             _errorEvents.value = null
             val result = authRepository.register(registerRequest)
             result.onSuccess { registerResponse ->
-                _authState.value = AuthState.Authenticated
-                _errorEvents.value =
-                    "Registration successful for ${registerResponse.username}! Please login." // Or handle navigation
-
+                _authState.value = AuthState.Unauthenticated
+                _registrationEvents.tryEmit(Unit)
+                _errorEvents.value = "Registration successful for ${registerResponse.username}. Please log in."
             }.onFailure { exception ->
                 _errorEvents.value = exception.message ?: "Registration failed"
             }
