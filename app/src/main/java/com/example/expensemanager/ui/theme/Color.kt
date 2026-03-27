@@ -3,9 +3,10 @@ package com.example.expensemanager.ui.theme
 import androidx.compose.ui.graphics.Color
 
 val Slate950 = Color(0xFF101623)
-val Slate900 = Color(0xFF182033)
+val Slate900 = Color(0xFF24324D)
 val Slate800 = Color(0xFF25324A)
-val Slate700 = Color(0xFF374963)
+val Slate700 = Color(0xFF3A4C72)
+val Slate600 = Color(0xFF5D769D)
 
 val Cloud50 = Color(0xFFF6F7FB)
 val Cloud100 = Color(0xFFEDEFF6)

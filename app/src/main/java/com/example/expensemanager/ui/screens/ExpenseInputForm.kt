@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
+import com.example.expensemanager.models.DEFAULT_EXPENSE_SELECTION_CATEGORY
 import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 
 @Composable
@@ -27,12 +28,13 @@ fun ExpenseInputForm(
     var amount by remember { mutableStateOf("") }
     var amountError by remember { mutableStateOf<String?>(null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf(DEFAULT_EXPENSE_CATEGORY) }
+    var selectedCategory by remember { mutableStateOf(DEFAULT_EXPENSE_SELECTION_CATEGORY) }
     val validCategories = categories.ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
 
     LaunchedEffect(validCategories) {
         if (selectedCategory !in validCategories) {
-            selectedCategory = validCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
+            selectedCategory = validCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                ?: validCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                 ?: validCategories.first()
         }
     }
