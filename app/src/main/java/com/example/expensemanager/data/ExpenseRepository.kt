@@ -29,6 +29,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import retrofit2.Response
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 
@@ -55,9 +56,13 @@ class ExpenseRepository @Inject constructor(
         }
     }
 
+    suspend fun getCachedTrackers(): List<TrackerSummaryResponse> {
+        return expenseTrackerDao.getAllTrackersOnce().map { entity -> entity.toSummary() }
+    }
+
     suspend fun refreshTrackers() {
         val trackers = apiService.getTrackers()
-        expenseTrackerDao.replaceAll(trackers.map { it.toEntity(isSynced = true) })
+        mergeNetworkTrackers(trackers)
     }
 
     suspend fun clearLocalData() {
@@ -70,8 +75,8 @@ class ExpenseRepository @Inject constructor(
         if (response.isSuccessful) {
             val tracker = response.body()
                 ?: throw ApiException(500, "Active budget response was empty")
-            expenseTrackerDao.upsert(tracker.toEntity(isSynced = true))
-            return ActiveTrackerResult.Found(tracker)
+            val localTracker = mergeNetworkTracker(tracker)
+            return ActiveTrackerResult.Found(localTracker.toSummary())
         }
 
         if (response.code() == 404) {
@@ -86,11 +91,12 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun syncAllFromBackend() {
         val trackers = apiService.getTrackers()
-        expenseTrackerDao.replaceAll(trackers.map { it.toEntity(isSynced = true) })
+        val mergedTrackers = mergeNetworkTrackers(trackers)
 
-        trackers.forEach { tracker ->
+        mergedTrackers.forEach { tracker ->
             try {
-                val networkExpenses = apiService.getExpensesForTracker(tracker.id)
+                val serverTrackerId = tracker.serverId ?: tracker.id.takeIf { tracker.isSynced } ?: return@forEach
+                val networkExpenses = apiService.getExpensesForTracker(serverTrackerId)
                 mergeServerExpenses(tracker.id, networkExpenses)
             } catch (e: Exception) {
                 Log.w(TAG, "Could not sync expenses for tracker ${tracker.id}", e)
@@ -107,7 +113,8 @@ class ExpenseRepository @Inject constructor(
     }
 
     suspend fun getCategoryAnalyticsForTracker(trackerId: String): CategoryAnalyticsResponse? {
-        return runCatching { apiService.getCategoryAnalyticsForTracker(trackerId) }
+        val serverTrackerId = resolveServerTrackerId(trackerId) ?: return null
+        return runCatching { apiService.getCategoryAnalyticsForTracker(serverTrackerId) }
             .onFailure { Log.w(TAG, "Could not load category analytics for tracker $trackerId", it) }
             .getOrNull()
             ?.let { analytics ->
@@ -139,29 +146,49 @@ class ExpenseRepository @Inject constructor(
         startDate: String,
         endDate: String
     ): TrackerSummaryResponse {
-        val response = apiService.createTracker(
-            ExpenseTrackerRequest(
+        val request = ExpenseTrackerRequest(
+            name = name,
+            description = name,
+            startDate = startDate,
+            endDate = endDate,
+            budget = budget
+        )
+
+        return try {
+            val response = apiService.createTracker(request)
+            if (!response.isSuccessful) {
+                throw ApiException(
+                    code = response.code(),
+                    message = trackerSaveErrorMessage(response, "Failed to create budget")
+                )
+            }
+
+            val createdTracker = response.body()
+                ?: throw ApiException(500, "Budget was created but no tracker was returned")
+
+            val localTracker = mergeNetworkTracker(createdTracker.toSummary())
+            localTracker.toSummary()
+        } catch (exception: Exception) {
+            if (exception is ApiException || exception !is IOException) {
+                throw exception
+            }
+
+            val localTracker = ExpenseTrackerEntity(
+                id = UUID.randomUUID().toString(),
+                serverId = null,
+                userId = UNKNOWN_USER_ID,
                 name = name,
+                budget = budget,
                 description = name,
                 startDate = startDate,
                 endDate = endDate,
-                budget = budget
+                isSynced = false,
+                isDeleted = false
             )
-        )
-
-        if (!response.isSuccessful) {
-            throw ApiException(
-                code = response.code(),
-                message = trackerSaveErrorMessage(response, "Failed to create budget")
-            )
+            expenseTrackerDao.upsert(localTracker)
+            scheduleSync()
+            localTracker.toSummary()
         }
-
-        val createdTracker = response.body()
-            ?: throw ApiException(500, "Budget was created but no tracker was returned")
-
-        val summary = createdTracker.toSummary()
-        expenseTrackerDao.upsert(summary.toEntity(isSynced = true))
-        return summary
     }
 
     suspend fun updateTracker(
@@ -178,50 +205,104 @@ class ExpenseRepository @Inject constructor(
             endDate = endDate,
             budget = budget
         )
-        val response = apiService.updateTracker(
-            trackerId = trackerId,
-            expenseTrackerRequest = request
-        ).let { patchResponse ->
-            when (patchResponse.code()) {
-                404, 405 -> {
-                    apiService.updateTrackerPut(
-                        trackerId = trackerId,
-                        expenseTrackerRequest = request
+        val existing = expenseTrackerDao.getTrackerById(trackerId)
+            ?: throw ApiException(404, "Tracker not found")
+
+        if (existing.serverId == null) {
+            val localTracker = existing.copy(
+                name = name,
+                budget = budget,
+                description = name,
+                startDate = startDate,
+                endDate = endDate,
+                isSynced = false
+            )
+            expenseTrackerDao.upsert(localTracker)
+
+            return try {
+                val response = apiService.createTracker(request)
+                if (!response.isSuccessful) {
+                    throw ApiException(
+                        code = response.code(),
+                        message = trackerSaveErrorMessage(response, "Failed to update budget")
                     )
                 }
 
-                400, 422 -> {
-                    updateTrackerSnakeCase(trackerId, name, budget, startDate, endDate)
+                val createdTracker = response.body()
+                    ?: throw ApiException(500, "Budget was created but no tracker was returned")
+                val mergedTracker = mergeNetworkTracker(createdTracker.toSummary(), preferredLocalId = trackerId)
+                mergedTracker.toSummary()
+            } catch (exception: Exception) {
+                if (exception is ApiException || exception !is IOException) {
+                    throw exception
                 }
-
-                else -> patchResponse
+                scheduleSync()
+                localTracker.toSummary()
             }
         }
 
-        if (!response.isSuccessful) {
-            throw ApiException(
-                code = response.code(),
-                message = trackerSaveErrorMessage(response, "Failed to update budget")
-            )
-        }
+        return try {
+            val serverTrackerId = existing.serverId
+            val response = apiService.updateTracker(
+                trackerId = serverTrackerId,
+                expenseTrackerRequest = request
+            ).let { patchResponse ->
+                when (patchResponse.code()) {
+                    404, 405 -> {
+                        apiService.updateTrackerPut(
+                            trackerId = serverTrackerId,
+                            expenseTrackerRequest = request
+                        )
+                    }
 
-        val updatedTracker = response.body()
-            ?: runCatching { apiService.getTrackerDetails(trackerId) }
-                .getOrElse {
-                    ExpenseTrackerResponse(
-                        id = trackerId,
-                        name = name,
-                        description = name,
-                        startDate = startDate,
-                        endDate = endDate,
-                        budget = budget,
-                        expenses = emptyList()
-                    )
+                    400, 422 -> {
+                        updateTrackerSnakeCase(serverTrackerId, name, budget, startDate, endDate)
+                    }
+
+                    else -> patchResponse
                 }
+            }
 
-        val summary = updatedTracker.toSummary()
-        expenseTrackerDao.upsert(summary.toEntity(isSynced = true))
-        return summary
+            if (!response.isSuccessful) {
+                throw ApiException(
+                    code = response.code(),
+                    message = trackerSaveErrorMessage(response, "Failed to update budget")
+                )
+            }
+
+            val updatedTracker = response.body()
+                ?: runCatching { apiService.getTrackerDetails(serverTrackerId) }
+                    .getOrElse {
+                        ExpenseTrackerResponse(
+                            id = serverTrackerId,
+                            name = name,
+                            description = name,
+                            startDate = startDate,
+                            endDate = endDate,
+                            budget = budget,
+                            expenses = emptyList()
+                        )
+                    }
+
+            val mergedTracker = mergeNetworkTracker(updatedTracker.toSummary(), preferredLocalId = trackerId)
+            mergedTracker.toSummary()
+        } catch (exception: Exception) {
+            if (exception is ApiException || exception !is IOException) {
+                throw exception
+            }
+
+            val localTracker = existing.copy(
+                name = name,
+                budget = budget,
+                description = name,
+                startDate = startDate,
+                endDate = endDate,
+                isSynced = false
+            )
+            expenseTrackerDao.upsert(localTracker)
+            scheduleSync()
+            localTracker.toSummary()
+        }
     }
 
     private suspend fun updateTrackerSnakeCase(
@@ -310,8 +391,9 @@ class ExpenseRepository @Inject constructor(
     }
 
     suspend fun refreshExpenses(trackerId: String) {
+        val serverTrackerId = resolveServerTrackerId(trackerId) ?: return
         try {
-            val networkExpenses = apiService.getExpensesForTracker(trackerId)
+            val networkExpenses = apiService.getExpensesForTracker(serverTrackerId)
             mergeServerExpenses(trackerId, networkExpenses)
         } catch (e: Exception) {
             Log.w(TAG, "Could not refresh expenses for tracker $trackerId", e)
@@ -336,20 +418,21 @@ class ExpenseRepository @Inject constructor(
 
     private suspend fun trySyncExpense(expense: ExpenseEntity): Boolean {
         return try {
+            val serverTrackerId = resolveServerTrackerId(expense.trackerId) ?: return false
             val request = ExpenseRequest(
                 id = expense.id,
                 description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
                 amount = expense.amount,
                 date = expense.date,
-                trackerId = expense.trackerId,
+                trackerId = serverTrackerId,
                 category = normalizeExpenseCategory(expense.category)
             )
-            val response = createExpenseOnServer(request, expense.trackerId)
+            val response = createExpenseOnServer(request, serverTrackerId)
             if (response.isSuccessful) {
                 val serverExpense = response.body()
                 if (serverExpense != null && serverExpense.id != expense.id) {
                     expenseDao.deletePermanently(expense.id)
-                    expenseDao.upsert(serverExpense.toEntity())
+                    expenseDao.upsert(serverExpense.toEntity(localTrackerId = expense.trackerId))
                 } else {
                     expenseDao.upsert(
                         expense.copy(
@@ -385,7 +468,7 @@ class ExpenseRepository @Inject constructor(
         trackerId: String,
         networkExpenses: List<ExpenseResponse>
     ) {
-        val serverEntities = networkExpenses.map { it.toEntity() }
+        val serverEntities = networkExpenses.map { it.toEntity(localTrackerId = trackerId) }
         val serverIds = serverEntities.map { it.id }.toSet()
         val serverSignatures = serverEntities.map { it.signature() }.toSet()
 
@@ -411,11 +494,77 @@ class ExpenseRepository @Inject constructor(
             response.errorMessage(fallback)
         }
     }
+
+    private suspend fun resolveServerTrackerId(localTrackerId: String): String? {
+        val tracker = expenseTrackerDao.getTrackerById(localTrackerId) ?: return null
+        return tracker.serverId ?: tracker.id.takeIf { tracker.isSynced }
+    }
+
+    private suspend fun mergeNetworkTrackers(
+        networkTrackers: List<TrackerSummaryResponse>
+    ): List<ExpenseTrackerEntity> {
+        val localTrackers = expenseTrackerDao.getAllTrackersOnce()
+        val localByServerId = localTrackers.mapNotNull { tracker ->
+            tracker.serverId?.let { serverId -> serverId to tracker }
+        }.toMap()
+        val localById = localTrackers.associateBy { it.id }
+        val merged = mutableListOf<ExpenseTrackerEntity>()
+        val mergedIds = mutableSetOf<String>()
+
+        networkTrackers.forEach { tracker ->
+            val existing = localByServerId[tracker.id] ?: localById[tracker.id]
+            val mergedTracker = mergeWithExistingTracker(tracker, existing)
+            merged += mergedTracker
+            mergedIds += mergedTracker.id
+        }
+
+        localTrackers
+            .filter { tracker -> tracker.id !in mergedIds && !tracker.isSynced }
+            .forEach { tracker ->
+                merged += tracker
+            }
+
+        expenseTrackerDao.replaceAll(merged)
+        return merged
+    }
+
+    private suspend fun mergeNetworkTracker(
+        networkTracker: TrackerSummaryResponse,
+        preferredLocalId: String? = null
+    ): ExpenseTrackerEntity {
+        val existing = preferredLocalId?.let { expenseTrackerDao.getTrackerById(it) }
+            ?: expenseTrackerDao.getTrackerByServerId(networkTracker.id)
+            ?: expenseTrackerDao.getTrackerById(networkTracker.id)
+        val mergedTracker = mergeWithExistingTracker(networkTracker, existing)
+        expenseTrackerDao.upsert(mergedTracker)
+        return mergedTracker
+    }
+
+    private fun mergeWithExistingTracker(
+        networkTracker: TrackerSummaryResponse,
+        existing: ExpenseTrackerEntity?
+    ): ExpenseTrackerEntity {
+        return when {
+            existing == null -> networkTracker.toEntity(isSynced = true)
+            !existing.isSynced -> existing.copy(serverId = networkTracker.id)
+            else -> existing.copy(
+                serverId = networkTracker.id,
+                name = networkTracker.name,
+                budget = networkTracker.budget,
+                description = networkTracker.description.orEmpty(),
+                startDate = networkTracker.startDate,
+                endDate = networkTracker.endDate,
+                isSynced = true,
+                isDeleted = false
+            )
+        }
+    }
 }
 
 private fun TrackerSummaryResponse.toEntity(isSynced: Boolean): ExpenseTrackerEntity {
     return ExpenseTrackerEntity(
         id = id,
+        serverId = id,
         userId = UNKNOWN_USER_ID,
         name = name,
         budget = budget,
@@ -449,14 +598,14 @@ private fun ExpenseTrackerResponse.toSummary(): TrackerSummaryResponse {
     )
 }
 
-private fun ExpenseResponse.toEntity(): ExpenseEntity {
+private fun ExpenseResponse.toEntity(localTrackerId: String): ExpenseEntity {
     return ExpenseEntity(
         id = id,
         description = description,
         amount = amount,
         date = date,
         category = normalizeExpenseCategory(category),
-        trackerId = trackerId,
+        trackerId = localTrackerId,
         createdAt = createdAt,
         updatedAt = updatedAt,
         isSynced = true,

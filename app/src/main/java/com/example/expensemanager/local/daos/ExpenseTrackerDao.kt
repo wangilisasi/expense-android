@@ -13,8 +13,20 @@ interface ExpenseTrackerDao {
     @Query("SELECT * FROM expense_trackers ORDER BY startDate DESC")
     fun getAllTrackers(): Flow<List<ExpenseTrackerEntity>>
 
+    @Query("SELECT * FROM expense_trackers ORDER BY startDate DESC")
+    suspend fun getAllTrackersOnce(): List<ExpenseTrackerEntity>
+
+    @Query("SELECT * FROM expense_trackers WHERE id = :trackerId LIMIT 1")
+    suspend fun getTrackerById(trackerId: String): ExpenseTrackerEntity?
+
+    @Query("SELECT * FROM expense_trackers WHERE serverId = :serverId LIMIT 1")
+    suspend fun getTrackerByServerId(serverId: String): ExpenseTrackerEntity?
+
     @Query("SELECT * FROM expense_trackers ORDER BY startDate DESC LIMIT 1")
     suspend fun getLatestTracker(): ExpenseTrackerEntity?
+
+    @Query("SELECT * FROM expense_trackers WHERE isSynced = 0 ORDER BY startDate DESC")
+    suspend fun getUnsyncedTrackers(): List<ExpenseTrackerEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(tracker: ExpenseTrackerEntity)

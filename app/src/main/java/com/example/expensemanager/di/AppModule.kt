@@ -83,6 +83,7 @@ object DatabaseModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "expense_manager.db")
+            .addMigrations(AppDatabase.MIGRATION_2_3)
             .fallbackToDestructiveMigration() // Easiest for development
             .build()
     }

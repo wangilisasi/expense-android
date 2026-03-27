@@ -7,22 +7,15 @@ import com.example.expensemanager.data.ActiveTrackerResult
 import com.example.expensemanager.data.ExpenseRepository
 import com.example.expensemanager.data.isUnauthorized
 import com.example.expensemanager.data.toUserFacingMessage
-import com.example.expensemanager.models.CategoryAnalyticsItem
-import com.example.expensemanager.models.CategoryAnalyticsResponse
 import com.example.expensemanager.models.DEFAULT_EXPENSE_CATEGORY
 import com.example.expensemanager.models.DEFAULT_EXPENSE_SELECTION_CATEGORY
-import com.example.expensemanager.models.DailyExpense
 import com.example.expensemanager.models.DailyExpensesResponse
-import com.example.expensemanager.models.ExpenseResponse
-import com.example.expensemanager.models.ExpenseTransaction
 import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
-import com.example.expensemanager.models.StatsResponse
 import com.example.expensemanager.models.TrackerSummaryResponse
 import com.example.expensemanager.models.normalizeExpenseCategory
 import com.example.expensemanager.ui.uistates.ExpenseListUiState
 import com.example.expensemanager.ui.uistates.TrackerStatsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,26 +23,13 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 private const val TAG = "ExpenseListViewModel"
 private const val LOAD_BUDGETS_ERROR = "Failed to load your budgets."
 private const val SAVE_BUDGET_ERROR = "Failed to save budget."
 private const val ADD_EXPENSE_ERROR = "Failed to add expense."
-
-sealed class ExpenseListNavigationEvent {
-    data object NavigateToHome : ExpenseListNavigationEvent()
-}
-
-sealed interface TrackerSessionState {
-    data object Idle : TrackerSessionState
-    data object Loading : TrackerSessionState
-    data object ActiveBudget : TrackerSessionState
-    data object NoActiveBudget : TrackerSessionState
-    data object RequiresLogin : TrackerSessionState
-    data class Error(val message: String) : TrackerSessionState
-}
+private const val OFFLINE_MODE_MESSAGE = "Offline mode"
 
 @HiltViewModel
 class ExpenseListViewModel @Inject constructor(
@@ -69,10 +49,7 @@ class ExpenseListViewModel @Inject constructor(
     private val _sessionState = MutableStateFlow<TrackerSessionState>(TrackerSessionState.Idle)
     val sessionState: StateFlow<TrackerSessionState> = _sessionState
 
-    private var currentTracker: TrackerSummaryResponse? = null
-    private var currentTrackerId: String? = null
-    private var expensesObservationJob: Job? = null
-    private var lastRefreshedTrackerId: String? = null
+    private val sessionStore = ExpenseListSessionStore()
 
     init {
         observeCurrentTrackerAndExpenses()
@@ -90,11 +67,7 @@ class ExpenseListViewModel @Inject constructor(
     }
 
     fun clearSession() {
-        currentTracker = null
-        currentTrackerId = null
-        lastRefreshedTrackerId = null
-        expensesObservationJob?.cancel()
-        expensesObservationJob = null
+        sessionStore.clearTrackerSelection()
         _sessionState.value = TrackerSessionState.Idle
         _uiState.value = ExpenseListUiState(availableCategories = _uiState.value.availableCategories)
         _statsUiState.value = TrackerStatsUiState()
@@ -120,14 +93,27 @@ class ExpenseListViewModel @Inject constructor(
             _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
         }
 
-        runCatching { repository.refreshTrackers() }
-            .onFailure { throwable ->
-                if (throwable.isUnauthorized()) {
-                    _sessionState.value = TrackerSessionState.RequiresLogin
-                    return
-                }
-                Log.w(TAG, "Could not refresh trackers from backend", throwable)
+        val cachedTrackers = repository.getCachedTrackers()
+        applyLocalSession(cachedTrackers)
+
+        val trackersRefresh = runCatching { repository.refreshTrackers() }
+        trackersRefresh.onFailure { throwable ->
+            if (throwable.isUnauthorized()) {
+                _sessionState.value = TrackerSessionState.RequiresLogin
+                return
             }
+            Log.w(TAG, "Could not refresh trackers from backend", throwable)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = null,
+                    infoMessage = OFFLINE_MODE_MESSAGE
+                )
+            }
+            _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
+            repository.triggerExpenseSync()
+            return
+        }
 
         val activeResult = runCatching { repository.getActiveTracker() }
         activeResult.onFailure { throwable ->
@@ -136,47 +122,21 @@ class ExpenseListViewModel @Inject constructor(
                 return
             }
 
-            Log.e(TAG, "Failed to load active tracker", throwable)
-            val message = throwable.toUserFacingMessage(LOAD_BUDGETS_ERROR)
-            _sessionState.value = TrackerSessionState.Error(message)
-            _uiState.update { it.copy(isLoading = false, error = message) }
-            _statsUiState.update { it.copy(isLoading = false, errorMessage = message) }
+            Log.w(TAG, "Failed to refresh active tracker, continuing with cached data", throwable)
+            applyLocalSession(repository.getCachedTrackers(), OFFLINE_MODE_MESSAGE)
             return
         }
 
         when (val result = activeResult.getOrThrow()) {
             is ActiveTrackerResult.Found -> {
-                currentTrackerId = result.tracker.id
+                sessionStore.currentTrackerId = result.tracker.id
                 _sessionState.value = TrackerSessionState.ActiveBudget
-                _uiState.update { it.copy(error = null, infoMessage = null) }
+                _uiState.update { it.copy(isLoading = false, error = null, infoMessage = null) }
                 _statsUiState.update { it.copy(errorMessage = null) }
             }
 
             ActiveTrackerResult.None -> {
-                currentTracker = null
-                currentTrackerId = null
-                lastRefreshedTrackerId = null
-                expensesObservationJob?.cancel()
-                expensesObservationJob = null
-                _sessionState.value = TrackerSessionState.NoActiveBudget
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        activeTracker = null,
-                        expenses = emptyList(),
-                        dailyExpenses = DailyExpensesResponse(),
-                        error = null
-                    )
-                }
-                _statsUiState.update {
-                    it.copy(
-                        trackerStats = null,
-                        categoryAnalytics = null,
-                        trackerName = "",
-                        isLoading = false,
-                        errorMessage = null
-                    )
-                }
+                showNoActiveBudget(infoMessage = null)
             }
         }
 
@@ -186,11 +146,12 @@ class ExpenseListViewModel @Inject constructor(
     private fun observeCurrentTrackerAndExpenses() {
         viewModelScope.launch {
             repository.getTrackers().collect { trackers ->
-                val previousTrackerId = currentTracker?.id
-                val tracker = currentTrackerId?.let { selectedId ->
+                val previousTrackerId = sessionStore.currentTracker?.id
+                val tracker = sessionStore.currentTrackerId?.let { selectedId ->
                     trackers.firstOrNull { it.id == selectedId }
-                }
-                currentTracker = tracker
+                } ?: trackers.firstOrNull { it.isActiveOn(LocalDate.now()) }
+                sessionStore.currentTrackerId = tracker?.id
+                sessionStore.currentTracker = tracker
 
                 _uiState.update { state ->
                     state.copy(
@@ -200,44 +161,40 @@ class ExpenseListViewModel @Inject constructor(
                 }
 
                 if (tracker == null) {
-                    lastRefreshedTrackerId = null
-                    expensesObservationJob?.cancel()
-                    expensesObservationJob = null
-                    _uiState.update {
-                        it.copy(
-                            isLoading = _sessionState.value == TrackerSessionState.Loading,
-                            expenses = emptyList(),
-                            dailyExpenses = DailyExpensesResponse()
-                        )
+                    sessionStore.clearTrackerSelection()
+                    if (_sessionState.value != TrackerSessionState.Loading) {
+                        _sessionState.value = TrackerSessionState.NoActiveBudget
                     }
-                    _statsUiState.update {
-                        it.copy(
-                            trackerStats = null,
-                            categoryAnalytics = null,
-                            trackerName = "",
-                            isLoading = _sessionState.value == TrackerSessionState.Loading
-                        )
-                    }
+                    clearTrackerPresentation(
+                        isLoading = _sessionState.value == TrackerSessionState.Loading
+                    )
                     return@collect
                 }
 
+                if (_sessionState.value != TrackerSessionState.Loading) {
+                    _sessionState.value = TrackerSessionState.ActiveBudget
+                }
+
                 val trackerChanged = previousTrackerId != tracker.id
+                val waitingForTrackerExpenses = sessionStore.hydratedTrackerId != tracker.id
 
                 _statsUiState.update {
                     it.copy(
                         trackerStats = buildLocalStats(tracker, _uiState.value.expenses),
                         categoryAnalytics = buildLocalCategoryAnalytics(tracker.id, _uiState.value.expenses),
                         trackerName = tracker.name,
-                        isLoading = trackerChanged,
+                        isLoading = waitingForTrackerExpenses,
                         errorMessage = null
                     )
                 }
 
-                if (trackerChanged || expensesObservationJob == null) {
+                if (trackerChanged || sessionStore.expensesObservationJob == null) {
+                    sessionStore.hydratedTrackerId = null
                     _uiState.update { it.copy(isLoading = true, error = null) }
-                    expensesObservationJob?.cancel()
-                    expensesObservationJob = viewModelScope.launch {
+                    sessionStore.expensesObservationJob?.cancel()
+                    sessionStore.expensesObservationJob = viewModelScope.launch {
                         repository.getExpenses(tracker.id).collect { expenses ->
+                            sessionStore.hydratedTrackerId = tracker.id
                             _uiState.update {
                                 it.copy(
                                     isLoading = false,
@@ -259,8 +216,8 @@ class ExpenseListViewModel @Inject constructor(
                     }
                 }
 
-                if (lastRefreshedTrackerId != tracker.id) {
-                    lastRefreshedTrackerId = tracker.id
+                if (sessionStore.lastRefreshedTrackerId != tracker.id) {
+                    sessionStore.lastRefreshedTrackerId = tracker.id
                     viewModelScope.launch {
                         runCatching { repository.refreshExpenses(tracker.id) }
                             .onFailure { Log.w(TAG, "Could not refresh expenses from network", it) }
@@ -298,7 +255,7 @@ class ExpenseListViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = true, error = null, infoMessage = null) }
                 _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
 
-                val trackerId = currentTracker?.id
+                val trackerId = sessionStore.currentTracker?.id
                 if (trackerId == null) {
                     repository.createTracker(name, budget, startDate, endDate)
                 } else {
@@ -343,7 +300,7 @@ class ExpenseListViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                val trackerId = currentTracker?.id
+                val trackerId = sessionStore.currentTracker?.id
                 if (trackerId == null) {
                     _uiState.update { it.copy(error = "No active budget available. Create one first.") }
                     return@launch
@@ -381,95 +338,79 @@ class ExpenseListViewModel @Inject constructor(
             "Budget saved. No active budget is available for today yet."
         }
     }
-}
 
-private fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpensesResponse {
-    val groupedByDate = expenses.groupBy { it.date }
-    val dailyTotals = groupedByDate.entries
-        .sortedByDescending { it.key }
-        .map { (date, dayExpenses) ->
-            DailyExpense(
-                date = date,
-                total_amount = dayExpenses.sumOf { it.amount },
-                transactions = dayExpenses.map { expense ->
-                    ExpenseTransaction(
-                        id = expense.id,
-                        name = expense.description,
-                        amount = expense.amount,
-                        category = normalizeExpenseCategory(expense.category),
-                        isSynced = expense.isSynced
-                    )
-                }
+    private fun applyLocalSession(
+        trackers: List<TrackerSummaryResponse>,
+        infoMessage: String? = null
+    ) {
+        val activeTracker = trackers.firstOrNull { tracker ->
+            tracker.isActiveOn(LocalDate.now())
+        }
+        sessionStore.currentTrackerId = activeTracker?.id
+
+        if (activeTracker != null) {
+            _sessionState.value = TrackerSessionState.ActiveBudget
+            sessionStore.hydratedTrackerId = null
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    trackers = trackers,
+                    activeTracker = activeTracker,
+                    error = null,
+                    infoMessage = infoMessage
+                )
+            }
+            _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
+        } else {
+            showNoActiveBudget(trackers = trackers, infoMessage = infoMessage)
+        }
+    }
+
+    private fun showNoActiveBudget(
+        trackers: List<TrackerSummaryResponse> = _uiState.value.trackers,
+        infoMessage: String? = _uiState.value.infoMessage
+    ) {
+        sessionStore.clearTrackerSelection()
+        _sessionState.value = TrackerSessionState.NoActiveBudget
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                trackers = trackers,
+                activeTracker = null,
+                expenses = emptyList(),
+                dailyExpenses = DailyExpensesResponse(),
+                error = null,
+                infoMessage = infoMessage
             )
         }
-
-    return DailyExpensesResponse(daily_expenses = dailyTotals)
-}
-
-private fun buildLocalStats(
-    tracker: TrackerSummaryResponse,
-    expenses: List<ExpenseResponse>
-): StatsResponse {
-    val today = LocalDate.now()
-    val startDate = parseDateOrNull(tracker.startDate)
-    val endDate = parseDateOrNull(tracker.endDate)
-
-    val totalSpent = expenses.sumOf { it.amount }
-    val todaysSpent = expenses.filter { it.date == today.toString() }.sumOf { it.amount }
-    val remainingDays = endDate
-        ?.let { ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) }
-        ?: 0
-
-    val elapsedDays = startDate
-        ?.takeIf { !today.isBefore(it) }
-        ?.let { ChronoUnit.DAYS.between(it, today).toInt() + 1 }
-        ?.coerceAtLeast(1)
-        ?: 1
-
-    val remainingBudget = (tracker.budget - totalSpent).coerceAtLeast(0.0)
-    val targetPerDay = if (remainingDays > 0) remainingBudget / remainingDays else remainingBudget
-    val averageExpenditure = if (expenses.isNotEmpty()) totalSpent / elapsedDays else 0.0
-
-    return StatsResponse(
-        startDate = tracker.startDate,
-        endDate = tracker.endDate,
-        budget = tracker.budget,
-        remainingDays = remainingDays,
-        targetExpenditurePerDay = targetPerDay,
-        totalExpenditure = totalSpent,
-        todaysExpenditure = todaysSpent,
-        averageExpenditure = averageExpenditure
-    )
-}
-
-private fun buildLocalCategoryAnalytics(
-    trackerId: String,
-    expenses: List<ExpenseResponse>
-): CategoryAnalyticsResponse {
-    val totalSpent = expenses.sumOf { it.amount }
-    val categories = expenses
-        .groupBy { expense ->
-            normalizeExpenseCategory(expense.category)
-        }
-        .map { (category, categoryExpenses) ->
-            val categoryTotal = categoryExpenses.sumOf { it.amount }
-            val percentage = if (totalSpent > 0.0) (categoryTotal / totalSpent) * 100 else 0.0
-            CategoryAnalyticsItem(
-                category = category,
-                totalAmount = categoryTotal,
-                percentage = percentage,
-                expenseCount = categoryExpenses.size
+        _statsUiState.update {
+            it.copy(
+                trackerStats = null,
+                categoryAnalytics = null,
+                trackerName = "",
+                isLoading = false,
+                errorMessage = null
             )
         }
-        .sortedByDescending { it.totalAmount }
+    }
 
-    return CategoryAnalyticsResponse(
-        trackerId = trackerId,
-        totalExpenditure = totalSpent,
-        categories = categories
-    )
-}
-
-private fun parseDateOrNull(rawDate: String): LocalDate? {
-    return runCatching { LocalDate.parse(rawDate.take(10)) }.getOrNull()
+    private fun clearTrackerPresentation(isLoading: Boolean) {
+        _uiState.update {
+            it.copy(
+                isLoading = isLoading,
+                activeTracker = null,
+                expenses = emptyList(),
+                dailyExpenses = DailyExpensesResponse()
+            )
+        }
+        _statsUiState.update {
+            it.copy(
+                trackerStats = null,
+                categoryAnalytics = null,
+                trackerName = "",
+                isLoading = isLoading,
+                errorMessage = null
+            )
+        }
+    }
 }

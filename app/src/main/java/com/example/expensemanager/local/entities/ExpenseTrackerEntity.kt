@@ -6,7 +6,8 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "expense_trackers")
 data class ExpenseTrackerEntity(
     @PrimaryKey
-    val id: String, // UUID, also used as server ID
+    val id: String, // Stable local ID
+    val serverId: String? = null, // Remote UUID once synced
     val userId: String, // Foreign key to the user
     val name: String,
     val budget: Double,

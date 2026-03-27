@@ -401,6 +401,22 @@ fun DashBoardScreen(
                             )
                         }
 
+                        uiState.infoMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Text(
+                                        text = message,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         item {
                             BudgetSummaryCard(
                                 remaining = remaining,
