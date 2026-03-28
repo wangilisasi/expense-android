@@ -57,8 +57,15 @@ class ExpenseListViewModel @Inject constructor(
     }
 
     fun bootstrapSession(force: Boolean = false) {
-        if (!force && _sessionState.value == TrackerSessionState.Loading) {
-            return
+        if (!force) {
+            when (_sessionState.value) {
+                TrackerSessionState.Idle -> Unit
+                TrackerSessionState.Loading,
+                TrackerSessionState.ActiveBudget,
+                TrackerSessionState.NoActiveBudget,
+                TrackerSessionState.RequiresLogin,
+                is TrackerSessionState.Error -> return
+            }
         }
 
         viewModelScope.launch {
