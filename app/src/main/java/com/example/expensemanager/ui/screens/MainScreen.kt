@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -183,7 +185,10 @@ fun BottomBar(
     hasActiveBudget: Boolean
 ) {
     val items = listOf(BottomNavItem.Home, BottomNavItem.Analytics, BottomNavItem.BudgetSetup)
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.scrim,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
 
@@ -199,6 +204,15 @@ fun BottomBar(
                 label = { Text(item.title) },
                 selected = currentDestination?.route == item.route,
                 enabled = enabled,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSecondary,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.secondary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                ),
                 onClick = {
                     if (enabled && currentDestination?.route != item.route) {
                         navController.navigateToBottomTab(item.route)

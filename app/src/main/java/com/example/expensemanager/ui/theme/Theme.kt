@@ -12,34 +12,55 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Teal300,
-    onPrimary = Slate950,
-    secondary = Slate700,
-    tertiary = Teal500,
+    primary = Slate600,
+    onPrimary = Cloud50,
+    primaryContainer = Slate700,
+    onPrimaryContainer = Cloud50,
+    secondary = Lavender500,
+    onSecondary = Cloud50,
+    secondaryContainer = Slate800,
+    onSecondaryContainer = Cloud50,
+    tertiary = Teal300,
+    onTertiary = Slate950,
+    tertiaryContainer = Slate900,
+    onTertiaryContainer = Cloud50,
     background = Slate950,
     onBackground = Cloud50,
     surface = Slate900,
     onSurface = Cloud50,
     surfaceVariant = Slate800,
     onSurfaceVariant = Cloud200,
-    error = Red600
+    outline = Slate700,
+    error = Red600,
+    errorContainer = Red600.copy(alpha = 0.2f),
+    onErrorContainer = Cloud50,
+    scrim = Ink900
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Teal500,
+    primary = Slate700,
     onPrimary = Cloud50,
-    secondary = Slate700,
+    primaryContainer = Slate600,
+    onPrimaryContainer = Cloud50,
+    secondary = Lavender500,
     onSecondary = Cloud50,
-    tertiary = Teal300,
-    onTertiary = Slate950,
-    background = Cloud50,
+    secondaryContainer = Cloud100,
+    onSecondaryContainer = Ink900,
+    tertiary = Teal500,
+    onTertiary = Cloud50,
+    tertiaryContainer = Cloud100,
+    onTertiaryContainer = Ink900,
+    background = Color(0xFFF2F5FC),
     onBackground = Ink900,
-    surface = Color.White,
+    surface = Color(0xFFFBFCFF),
     onSurface = Ink900,
-    surfaceVariant = Cloud100,
+    surfaceVariant = Color(0xFFE3EAF6),
     onSurfaceVariant = Ink700,
-    outline = Cloud200,
-    error = Red600
+    outline = Color(0xFFBEC9DE),
+    error = Red600,
+    errorContainer = Color(0xFFFAD4D8),
+    onErrorContainer = Ink900,
+    scrim = Ink900
 )
 
 @Composable

@@ -34,20 +34,28 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.expensemanager.models.CategoryAnalyticsItem
 import com.example.expensemanager.navigation.Screen
+import com.example.expensemanager.ui.theme.Amber500
+import com.example.expensemanager.ui.theme.Green600
+import com.example.expensemanager.ui.theme.Lavender300
+import com.example.expensemanager.ui.theme.Lavender500
+import com.example.expensemanager.ui.theme.Red600
+import com.example.expensemanager.ui.theme.Slate600
+import com.example.expensemanager.ui.theme.Slate700
+import com.example.expensemanager.ui.theme.Teal300
 import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 import java.util.Locale
 
 private val ChartColors = listOf(
-    Color(0xFF4CAF50),
-    Color(0xFF2196F3),
-    Color(0xFFFF9800),
-    Color(0xFFE91E63),
-    Color(0xFF9C27B0),
-    Color(0xFF009688),
-    Color(0xFF795548),
-    Color(0xFF607D8B)
+    Teal300,
+    Slate600,
+    Amber500,
+    Lavender300,
+    Green600,
+    Slate700,
+    Red600,
+    Lavender500
 )
 
 @Composable

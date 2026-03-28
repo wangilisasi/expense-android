@@ -44,9 +44,10 @@ import com.example.expensemanager.models.DailyExpense
 import com.example.expensemanager.models.ExpenseTransaction
 import com.example.expensemanager.models.FALLBACK_EXPENSE_CATEGORIES
 import com.example.expensemanager.navigation.Screen
+import com.example.expensemanager.ui.theme.Amber500
+import com.example.expensemanager.ui.theme.Cloud50
 import com.example.expensemanager.ui.theme.Green600
 import com.example.expensemanager.ui.theme.Red600
-import com.example.expensemanager.ui.theme.Slate600
 import com.example.expensemanager.ui.theme.Slate700
 import com.example.expensemanager.ui.theme.Slate900
 import com.example.expensemanager.ui.viewmodels.AuthState
@@ -314,7 +315,7 @@ fun DashBoardScreen(
                     onClick = { showAddExpenseDialog = true },
                     modifier = Modifier.height(44.dp),
                     shape = RoundedCornerShape(14.dp),
-                    color = Slate600,
+                    color = MaterialTheme.colorScheme.primary,
                     shadowElevation = 6.dp
                 ) {
                     Row(
@@ -325,13 +326,13 @@ fun DashBoardScreen(
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Add Expense",
-                            tint = Color.White,
+                            tint = Cloud50,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(5.dp))
                         Text(
                             text = "Add Expense",
-                            color = Color.White,
+                            color = Cloud50,
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
@@ -513,16 +514,16 @@ fun BudgetSummaryCard(
     todaysSpend: Double,
     averageExpenditure: Double = 0.0
 ) {
-    val remainingColor = if (remaining >= 0) Color.White else Color(0xFFFFCDD2)
+    val remainingColor = if (remaining >= 0) Cloud50 else Red600.copy(alpha = 0.95f)
     val usageFraction = if (budget > 0) (totalSpent / budget).toFloat().coerceIn(0f, 1f) else 0f
     val remainingFraction = if (budget > 0) (remaining / budget).toFloat().coerceIn(0f, 1f) else 0f
     val remainingPercentage = (remainingFraction * 100).roundToInt()
     val usageColor = when {
-        budget <= 0 -> Color.White.copy(alpha = 0.7f)
-        remaining <= 0 -> Color(0xFFF44336)
-        remainingFraction > 0.5f -> Color(0xFF4CAF50)
-        remainingFraction > 0.2f -> Color(0xFFFFC107)
-        else -> Color(0xFFF44336)
+        budget <= 0 -> Cloud50.copy(alpha = 0.7f)
+        remaining <= 0 -> Red600
+        remainingFraction > 0.5f -> Green600
+        remainingFraction > 0.2f -> Amber500
+        else -> Red600
     }
     val budgetContext = if (budget > 0) {
         "$remainingPercentage% left of ${formatTzs(budget)} budget"
@@ -546,7 +547,7 @@ fun BudgetSummaryCard(
         ) {
             Text(
                 text = "Remaining",
-                color = Color.White.copy(alpha = 0.82f),
+                color = Cloud50.copy(alpha = 0.82f),
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = 18.sp,
                     lineHeight = 22.sp
@@ -562,7 +563,7 @@ fun BudgetSummaryCard(
             )
             Text(
                 text = budgetContext,
-                color = Color.White.copy(alpha = 0.72f),
+                color = Cloud50.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 16.sp,
                     lineHeight = 20.sp
@@ -574,7 +575,7 @@ fun BudgetSummaryCard(
                     .fillMaxWidth()
                     .height(5.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
+                    .background(Cloud50.copy(alpha = 0.2f))
             ) {
                 Box(
                     modifier = Modifier
@@ -589,8 +590,8 @@ fun BudgetSummaryCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                color = Color.White.copy(alpha = 0.035f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                color = Cloud50.copy(alpha = 0.04f),
+                border = BorderStroke(1.dp, Cloud50.copy(alpha = 0.1f))
             ) {
                 Column(
                     modifier = Modifier
@@ -599,7 +600,7 @@ fun BudgetSummaryCard(
                 ) {
                     Text(
                         text = "All amounts in TZS",
-                        color = Color.White.copy(alpha = 0.58f),
+                        color = Cloud50.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -623,7 +624,7 @@ fun BudgetSummaryCard(
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 10.dp),
                         thickness = 1.dp,
-                        color = Color.White.copy(alpha = 0.08f)
+                        color = Cloud50.copy(alpha = 0.1f)
                     )
 
                     Row(
@@ -662,7 +663,7 @@ private fun BudgetMetricCell(
     ) {
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.72f),
+            color = Cloud50.copy(alpha = 0.72f),
             style = if (compact) {
                 MaterialTheme.typography.bodySmall.copy(
                     fontSize = 13.sp,
@@ -677,7 +678,7 @@ private fun BudgetMetricCell(
         )
         Text(
             text = amount,
-            color = Color.White,
+            color = Cloud50,
             style = if (compact) {
                 MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 16.sp,
