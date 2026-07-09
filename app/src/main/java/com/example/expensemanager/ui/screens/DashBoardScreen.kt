@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,8 +55,12 @@ import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 import java.text.NumberFormat
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -96,9 +101,14 @@ fun DashBoardScreen(
     var newExpenseDescription by remember { mutableStateOf("") }
     var newExpenseAmount by remember { mutableStateOf("") }
     var pendingDeleteExpense by remember { mutableStateOf<ExpenseTransaction?>(null) }
+    var pendingEditExpense by remember { mutableStateOf<Pair<ExpenseTransaction, String>?>(null) }
     val availableCategories = uiState.availableCategories.ifEmpty { FALLBACK_EXPENSE_CATEGORIES }
     var newExpenseCategory by remember { mutableStateOf(DEFAULT_EXPENSE_SELECTION_CATEGORY) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var editExpenseDescription by remember { mutableStateOf("") }
+    var editExpenseAmount by remember { mutableStateOf("") }
+    var editExpenseCategory by remember { mutableStateOf(DEFAULT_EXPENSE_SELECTION_CATEGORY) }
+    var editCategoryMenuExpanded by remember { mutableStateOf(false) }
     val amountFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(availableCategories) {
@@ -111,6 +121,14 @@ fun DashBoardScreen(
     LaunchedEffect(showAddExpenseDialog) {
         if (showAddExpenseDialog) {
             amountFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(pendingEditExpense?.first?.id) {
+        pendingEditExpense?.first?.let { expense ->
+            editExpenseDescription = expense.name.takeIf { it != DEFAULT_EXPENSE_DESCRIPTION }.orEmpty()
+            editExpenseAmount = expense.amount.toString()
+            editExpenseCategory = expense.category
+            editCategoryMenuExpanded = false
         }
     }
 
@@ -296,6 +314,132 @@ fun DashBoardScreen(
         )
     }
 
+    pendingEditExpense?.let { editTarget ->
+        val expense = editTarget.first
+        val expenseDate = editTarget.second
+        AlertDialog(
+            modifier = Modifier
+                .shadow(14.dp, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp),
+            onDismissRequest = {
+                pendingEditExpense = null
+                editCategoryMenuExpanded = false
+            },
+            shape = RoundedCornerShape(14.dp),
+            tonalElevation = 8.dp,
+            title = { Text("Edit Expense") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editExpenseAmount,
+                        onValueChange = { editExpenseAmount = it },
+                        label = { Text("Amount") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = editExpenseCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { editCategoryMenuExpanded = !editCategoryMenuExpanded }) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Select category"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        DropdownMenu(
+                            expanded = editCategoryMenuExpanded,
+                            onDismissRequest = { editCategoryMenuExpanded = false }
+                        ) {
+                            availableCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category) },
+                                    onClick = {
+                                        editExpenseCategory = category
+                                        editCategoryMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = editExpenseDescription,
+                        onValueChange = { editExpenseDescription = it },
+                        label = { Text("Description (optional)") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val amountDouble = editExpenseAmount.toDoubleOrNull()
+                        if (amountDouble != null) {
+                            expenseViewModel.updateExpense(
+                                expense.id,
+                                editExpenseDescription.trim(),
+                                amountDouble,
+                                expenseDate,
+                                editExpenseCategory
+                            )
+                            pendingEditExpense = null
+                            editCategoryMenuExpanded = false
+                        }
+                    },
+                    enabled = editExpenseAmount.toDoubleOrNull() != null
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingEditExpense = null
+                        editCategoryMenuExpanded = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     LaunchedEffect(authState) {
         if (authState == AuthState.Unauthenticated) {
             rootNavController.navigate(Screen.Login.route) {
@@ -431,6 +575,9 @@ fun DashBoardScreen(
                         item {
                             DailyExpensesSection(
                                 dailyExpenses = uiState.dailyExpenses.daily_expenses,
+                                onEditClick = { expense, date ->
+                                    pendingEditExpense = expense to date
+                                },
                                 onDeleteClick = { expense ->
                                     pendingDeleteExpense = expense
                                 }
@@ -709,6 +856,7 @@ private fun ErrorContent(errorMessage: String?) {
 @Composable
 fun DailyExpensesSection(
     dailyExpenses: List<DailyExpense>,
+    onEditClick: (ExpenseTransaction, String) -> Unit,
     onDeleteClick: (ExpenseTransaction) -> Unit
 ) {
     var showAllDays by remember(dailyExpenses.size) { mutableStateOf(false) }
@@ -843,6 +991,9 @@ fun DailyExpensesSection(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 8.dp),
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
                                         if (showName) {
@@ -863,6 +1014,11 @@ fun DailyExpensesSection(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
+                                        Text(
+                                            text = formatExpenseTimestamp(trx.createdAt, day.date),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
+                                        )
                                     }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -875,16 +1031,10 @@ fun DailyExpensesSection(
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         SyncBadge(isSynced = trx.isSynced)
-                                        IconButton(
-                                            modifier = Modifier.size(22.dp),
-                                            onClick = { onDeleteClick(trx) }
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete expense",
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        }
+                                        ExpenseRowMenu(
+                                            onEditClick = { onEditClick(trx, day.date) },
+                                            onDeleteClick = { onDeleteClick(trx) }
+                                        )
                                     }
                                 }
                                 HorizontalDivider(
@@ -938,4 +1088,81 @@ private fun formatDayLabel(rawDate: String): String {
         today.minusDays(1) -> "Yesterday"
         else -> parsed.format(DateTimeFormatter.ofPattern("EEE, dd MMM", Locale.getDefault()))
     }
+}
+
+@Composable
+private fun ExpenseRowMenu(
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(
+            modifier = Modifier.size(28.dp),
+            onClick = { expanded = true }
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Expense actions",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Edit") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onEditClick()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Delete") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onDeleteClick()
+                }
+            )
+        }
+    }
+}
+
+private fun formatExpenseTimestamp(rawTimestamp: String, fallbackDate: String): String {
+    val zoneId = ZoneId.systemDefault()
+    val formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+
+    val localDateTime = rawTimestamp
+        .takeIf { it.isNotBlank() }
+        ?.let { raw ->
+            runCatching {
+                Instant.ofEpochMilli(raw.toLong()).atZone(zoneId).toLocalDateTime()
+            }.getOrNull()
+                ?: runCatching {
+                    OffsetDateTime.parse(raw).atZoneSameInstant(zoneId).toLocalDateTime()
+                }.getOrNull()
+                ?: runCatching {
+                    LocalDateTime.parse(raw.take(19))
+                }.getOrNull()
+        }
+
+    return localDateTime?.format(formatter)
+        ?: runCatching { LocalDate.parse(fallbackDate.take(10)).format(DateTimeFormatter.ofPattern("dd MMM")) }
+            .getOrDefault(fallbackDate)
 }

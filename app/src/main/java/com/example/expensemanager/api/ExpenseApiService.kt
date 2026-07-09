@@ -4,6 +4,7 @@ import com.example.expensemanager.models.DailyExpensesResponse
 import com.example.expensemanager.models.CategoryAnalyticsResponse
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseRequest
+import com.example.expensemanager.models.ExpenseUpdateRequest
 import com.example.expensemanager.models.ExpenseTrackerRequest
 import com.example.expensemanager.models.ExpenseTrackerResponse
 import com.example.expensemanager.models.TrackerSummaryResponse
@@ -55,6 +56,12 @@ interface ExpenseApiService {
 
     @DELETE("expenses/{uuid_id}")
     suspend fun deleteExpense(@Path("uuid_id") expenseId: String): Response<Unit>
+
+    @PATCH("expenses/{uuid_id}")
+    suspend fun updateExpense(
+        @Path("uuid_id") expenseId: String,
+        @Body expenseUpdateRequest: ExpenseUpdateRequest
+    ): Response<ExpenseResponse>
 
     @PATCH("trackers/{uuid_id}")
     suspend fun updateTracker(

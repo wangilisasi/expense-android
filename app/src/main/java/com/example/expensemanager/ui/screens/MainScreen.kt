@@ -47,7 +47,7 @@ fun MainScreen(rootNavController: NavHostController) {
 
     LaunchedEffect(authState) {
         when (authState) {
-            AuthState.Authenticated -> expenseListViewModel.bootstrapSession()
+            AuthState.Authenticated -> expenseListViewModel.bootstrapSession(force = true)
             AuthState.Unauthenticated -> expenseListViewModel.clearSession()
             AuthState.Unknown -> Unit
         }

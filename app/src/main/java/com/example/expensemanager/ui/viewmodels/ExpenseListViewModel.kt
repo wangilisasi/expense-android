@@ -23,13 +23,19 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 private const val TAG = "ExpenseListViewModel"
 private const val LOAD_BUDGETS_ERROR = "Failed to load your budgets."
 private const val SAVE_BUDGET_ERROR = "Failed to save budget."
 private const val ADD_EXPENSE_ERROR = "Failed to add expense."
+private const val UPDATE_EXPENSE_ERROR = "Failed to update expense."
 private const val OFFLINE_MODE_MESSAGE = "Offline mode"
+private const val DEFAULT_MONTHLY_BUDGET_NAME = "Monthly Budget"
+private const val DEFAULT_MONTHLY_BUDGET_AMOUNT = 1_000_000.0
+private const val DEFAULT_BUDGET_START_DAY = 24
+private const val DEFAULT_BUDGET_END_DAY = 23
 
 @HiltViewModel
 class ExpenseListViewModel @Inject constructor(
@@ -78,10 +84,6 @@ class ExpenseListViewModel @Inject constructor(
         _sessionState.value = TrackerSessionState.Idle
         _uiState.value = ExpenseListUiState(availableCategories = _uiState.value.availableCategories)
         _statsUiState.value = TrackerStatsUiState()
-
-        viewModelScope.launch {
-            repository.clearLocalData()
-        }
     }
 
     fun dismissInfoMessage() {
@@ -101,7 +103,10 @@ class ExpenseListViewModel @Inject constructor(
         }
 
         val cachedTrackers = repository.getCachedTrackers()
-        applyLocalSession(cachedTrackers)
+        applyLocalSession(
+            trackers = cachedTrackers,
+            allowNoActiveBudget = false
+        )
 
         val trackersRefresh = runCatching { repository.refreshTrackers() }
         trackersRefresh.onFailure { throwable ->
@@ -110,17 +115,29 @@ class ExpenseListViewModel @Inject constructor(
                 return
             }
             Log.w(TAG, "Could not refresh trackers from backend", throwable)
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    error = null,
-                    infoMessage = OFFLINE_MODE_MESSAGE
-                )
+            val hasBudget = ensureDefaultMonthlyBudget(
+                trackers = repository.getCachedTrackers(),
+                infoMessage = OFFLINE_MODE_MESSAGE
+            )
+            if (!hasBudget) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = null,
+                        infoMessage = OFFLINE_MODE_MESSAGE
+                    )
+                }
+                _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
             }
-            _statsUiState.update { it.copy(isLoading = false, errorMessage = null) }
             repository.triggerExpenseSync()
             return
         }
+
+        val refreshedTrackers = repository.getCachedTrackers()
+        applyLocalSession(
+            trackers = refreshedTrackers,
+            allowNoActiveBudget = false
+        )
 
         val activeResult = runCatching { repository.getActiveTracker() }
         activeResult.onFailure { throwable ->
@@ -130,7 +147,10 @@ class ExpenseListViewModel @Inject constructor(
             }
 
             Log.w(TAG, "Failed to refresh active tracker, continuing with cached data", throwable)
-            applyLocalSession(repository.getCachedTrackers(), OFFLINE_MODE_MESSAGE)
+            ensureDefaultMonthlyBudget(
+                trackers = repository.getCachedTrackers(),
+                infoMessage = OFFLINE_MODE_MESSAGE
+            )
             return
         }
 
@@ -143,11 +163,84 @@ class ExpenseListViewModel @Inject constructor(
             }
 
             ActiveTrackerResult.None -> {
-                showNoActiveBudget(infoMessage = null)
+                val hasBudget = ensureDefaultMonthlyBudget(
+                    trackers = refreshedTrackers,
+                    infoMessage = null
+                )
+                if (!hasBudget) {
+                    showNoActiveBudget(trackers = refreshedTrackers, infoMessage = null)
+                }
             }
         }
 
         repository.triggerExpenseSync()
+    }
+
+    private suspend fun ensureDefaultMonthlyBudget(
+        trackers: List<TrackerSummaryResponse>,
+        infoMessage: String?
+    ): Boolean {
+        val today = LocalDate.now()
+        val activeTracker = trackers.firstOrNull { tracker -> tracker.isActiveOn(today) }
+        if (activeTracker != null) {
+            sessionStore.currentTrackerId = activeTracker.id
+            _sessionState.value = TrackerSessionState.ActiveBudget
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    trackers = trackers,
+                    activeTracker = activeTracker,
+                    error = null,
+                    infoMessage = infoMessage
+                )
+            }
+            _statsUiState.update { it.copy(errorMessage = null) }
+            return true
+        }
+
+        val cycle = defaultMonthlyBudgetCycle(today)
+        val existingCycleTracker = trackers.firstOrNull { tracker -> tracker.matchesCycle(cycle) }
+        if (existingCycleTracker != null) {
+            sessionStore.currentTrackerId = existingCycleTracker.id
+            _sessionState.value = TrackerSessionState.ActiveBudget
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    trackers = trackers,
+                    activeTracker = existingCycleTracker,
+                    error = null,
+                    infoMessage = infoMessage
+                )
+            }
+            _statsUiState.update { it.copy(errorMessage = null) }
+            return true
+        }
+
+        return try {
+            val defaultBudget = defaultMonthlyBudgetSpec(today)
+            val createdTracker = repository.createTracker(
+                name = defaultBudget.name,
+                budget = defaultBudget.amount,
+                startDate = defaultBudget.cycle.startDate,
+                endDate = defaultBudget.cycle.endDate
+            )
+            sessionStore.currentTrackerId = createdTracker.id
+            _sessionState.value = TrackerSessionState.ActiveBudget
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    trackers = repository.getCachedTrackers(),
+                    activeTracker = createdTracker,
+                    error = null,
+                    infoMessage = infoMessage
+                )
+            }
+            _statsUiState.update { it.copy(errorMessage = null) }
+            true
+        } catch (exception: Exception) {
+            Log.w(TAG, "Could not create default monthly budget", exception)
+            false
+        }
     }
 
     private fun observeCurrentTrackerAndExpenses() {
@@ -337,6 +430,34 @@ class ExpenseListViewModel @Inject constructor(
         }
     }
 
+    fun updateExpense(
+        expenseId: String,
+        description: String,
+        amount: Double,
+        date: String,
+        category: String = DEFAULT_EXPENSE_CATEGORY
+    ) {
+        viewModelScope.launch {
+            try {
+                val allowedCategories = _uiState.value.availableCategories
+                val requestedCategory = normalizeExpenseCategory(category)
+                val safeCategory = allowedCategories.firstOrNull { it == requestedCategory }
+                    ?: allowedCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
+                    ?: DEFAULT_EXPENSE_CATEGORY
+                repository.updateExpense(
+                    expenseId = expenseId,
+                    description = description.trim(),
+                    amount = amount,
+                    date = date,
+                    category = safeCategory
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "An error occurred while updating an expense", e)
+                _uiState.update { it.copy(error = UPDATE_EXPENSE_ERROR) }
+            }
+        }
+    }
+
     private fun buildSavedBudgetMessage(startDate: String): String {
         val start = parseDateOrNull(startDate)
         return if (start != null && start.isAfter(LocalDate.now())) {
@@ -348,28 +469,50 @@ class ExpenseListViewModel @Inject constructor(
 
     private fun applyLocalSession(
         trackers: List<TrackerSummaryResponse>,
-        infoMessage: String? = null
+        infoMessage: String? = null,
+        allowNoActiveBudget: Boolean = true
     ) {
         val activeTracker = trackers.firstOrNull { tracker ->
             tracker.isActiveOn(LocalDate.now())
         }
-        sessionStore.currentTrackerId = activeTracker?.id
 
         if (activeTracker != null) {
+            val previousTrackerId = sessionStore.currentTrackerId
+            val trackerChanged = previousTrackerId != activeTracker.id
+            val isTrackerHydrated = sessionStore.hydratedTrackerId == activeTracker.id
+            val shouldLoadTrackerData = trackerChanged || !isTrackerHydrated
+
+            sessionStore.currentTrackerId = activeTracker.id
+            if (trackerChanged) {
+                sessionStore.hydratedTrackerId = null
+            }
+
             _sessionState.value = TrackerSessionState.ActiveBudget
-            sessionStore.hydratedTrackerId = null
             _uiState.update {
                 it.copy(
-                    isLoading = true,
+                    isLoading = shouldLoadTrackerData,
                     trackers = trackers,
                     activeTracker = activeTracker,
                     error = null,
                     infoMessage = infoMessage
                 )
             }
-            _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
-        } else {
+            _statsUiState.update {
+                it.copy(isLoading = shouldLoadTrackerData, errorMessage = null)
+            }
+        } else if (allowNoActiveBudget) {
             showNoActiveBudget(trackers = trackers, infoMessage = infoMessage)
+        } else {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    trackers = trackers,
+                    activeTracker = null,
+                    error = null,
+                    infoMessage = infoMessage
+                )
+            }
+            _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }
         }
     }
 
@@ -420,4 +563,42 @@ class ExpenseListViewModel @Inject constructor(
             )
         }
     }
+}
+
+internal data class DefaultBudgetCycle(
+    val startDate: String,
+    val endDate: String
+)
+
+internal data class DefaultMonthlyBudgetSpec(
+    val name: String,
+    val amount: Double,
+    val cycle: DefaultBudgetCycle
+)
+
+internal fun defaultMonthlyBudgetSpec(today: LocalDate): DefaultMonthlyBudgetSpec {
+    return DefaultMonthlyBudgetSpec(
+        name = DEFAULT_MONTHLY_BUDGET_NAME,
+        amount = DEFAULT_MONTHLY_BUDGET_AMOUNT,
+        cycle = defaultMonthlyBudgetCycle(today)
+    )
+}
+
+internal fun defaultMonthlyBudgetCycle(today: LocalDate): DefaultBudgetCycle {
+    val cycleStart = if (today.dayOfMonth >= DEFAULT_BUDGET_START_DAY) {
+        today.withDayOfMonth(DEFAULT_BUDGET_START_DAY)
+    } else {
+        today.minusMonths(1).withDayOfMonth(DEFAULT_BUDGET_START_DAY)
+    }
+    val cycleEnd = cycleStart.plusMonths(1).withDayOfMonth(DEFAULT_BUDGET_END_DAY)
+    val formatter = DateTimeFormatter.ISO_LOCAL_DATE
+
+    return DefaultBudgetCycle(
+        startDate = cycleStart.format(formatter),
+        endDate = cycleEnd.format(formatter)
+    )
+}
+
+private fun TrackerSummaryResponse.matchesCycle(cycle: DefaultBudgetCycle): Boolean {
+    return startDate.take(10) == cycle.startDate && endDate.take(10) == cycle.endDate
 }

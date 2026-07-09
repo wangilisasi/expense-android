@@ -17,6 +17,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false")
     suspend fun getExpensesForTrackerOnce(trackerId: String): List<ExpenseEntity>
 
+    @Query("SELECT * FROM expenses WHERE id = :expenseId")
+    suspend fun getExpenseById(expenseId: String): ExpenseEntity?
+
     // Insert or update one or more expenses.
     @Upsert
     suspend fun upsertAll(expenses: List<ExpenseEntity>)
@@ -28,6 +31,15 @@ interface ExpenseDao {
 
     @Query("SELECT * FROM expenses WHERE isSynced = false")
     suspend fun getUnsyncedExpenses(): List<ExpenseEntity>
+
+    @Query(
+        """
+        SELECT expenses.* FROM expenses
+        INNER JOIN expense_trackers ON expenses.trackerId = expense_trackers.id
+        WHERE expenses.isSynced = false AND expense_trackers.userId = :userId
+        """
+    )
+    suspend fun getUnsyncedExpensesForUser(userId: String): List<ExpenseEntity>
 
     // --- Methods for Deletion ---
 
@@ -41,4 +53,14 @@ interface ExpenseDao {
 
     @Query("DELETE FROM expenses")
     suspend fun clearAll()
+
+    @Query(
+        """
+        DELETE FROM expenses
+        WHERE trackerId IN (
+            SELECT id FROM expense_trackers WHERE userId = :userId
+        )
+        """
+    )
+    suspend fun clearForUser(userId: String)
 }

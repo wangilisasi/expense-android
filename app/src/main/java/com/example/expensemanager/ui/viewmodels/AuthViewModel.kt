@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -55,8 +56,13 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             tokenManager.getToken().collectLatest { token ->
                 if (token != null && !tokenManager.isTokenExpired(token)) {
+                    val cachedUserId = tokenManager.getCurrentUserId().firstOrNull()
+                    val cachedUsername = tokenManager.getCurrentUsername().firstOrNull()
+                    if (cachedUserId == null) {
+                        authRepository.refreshCurrentUser()
+                    }
                     _authState.value = AuthState.Authenticated
-                    _username.value = tokenManager.getUsernameFromToken(token)
+                    _username.value = cachedUsername ?: tokenManager.getUsernameFromToken(token)
                 } else if (token != null && tokenManager.isTokenExpired(token)) {
                     tokenManager.clearToken()
                     _authState.value = AuthState.Unauthenticated

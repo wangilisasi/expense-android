@@ -21,6 +21,9 @@ class TokenManager @Inject constructor(@ApplicationContext private val context: 
 
     companion object {
         private val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
+        private val CURRENT_USER_ID_KEY = stringPreferencesKey("current_user_id")
+        private val CURRENT_USERNAME_KEY = stringPreferencesKey("current_username")
+        private val CURRENT_EMAIL_KEY = stringPreferencesKey("current_email")
     }
 
     suspend fun saveToken(token: String) {
@@ -29,15 +32,44 @@ class TokenManager @Inject constructor(@ApplicationContext private val context: 
         }
     }
 
+    suspend fun saveCurrentUser(id: String, username: String, email: String) {
+        context.dataStore.edit { preferences ->
+            preferences[CURRENT_USER_ID_KEY] = id
+            preferences[CURRENT_USERNAME_KEY] = username
+            preferences[CURRENT_EMAIL_KEY] = email
+        }
+    }
+
     suspend fun clearToken() {
         context.dataStore.edit { preferences ->
             preferences.remove(ACCESS_TOKEN_KEY)
+            preferences.remove(CURRENT_USER_ID_KEY)
+            preferences.remove(CURRENT_USERNAME_KEY)
+            preferences.remove(CURRENT_EMAIL_KEY)
         }
     }
 
     fun getToken(): Flow<String?> {
         return context.dataStore.data.map { preferences ->
             preferences[ACCESS_TOKEN_KEY]
+        }
+    }
+
+    fun getCurrentUserId(): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[CURRENT_USER_ID_KEY]
+        }
+    }
+
+    fun getCurrentUsername(): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[CURRENT_USERNAME_KEY]
+        }
+    }
+
+    fun getCurrentEmail(): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[CURRENT_EMAIL_KEY]
         }
     }
 
@@ -78,4 +110,3 @@ class TokenManager @Inject constructor(@ApplicationContext private val context: 
         }
     }
 }
-

@@ -26,6 +26,8 @@ internal fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpe
                         name = expense.description,
                         amount = expense.amount,
                         category = normalizeExpenseCategory(expense.category),
+                        createdAt = expense.createdAt,
+                        updatedAt = expense.updatedAt,
                         isSynced = expense.isSynced
                     )
                 }

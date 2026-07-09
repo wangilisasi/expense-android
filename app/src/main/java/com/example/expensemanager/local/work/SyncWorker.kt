@@ -7,15 +7,18 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.expensemanager.api.ExpenseApiService
+import com.example.expensemanager.local.TokenManager
 import com.example.expensemanager.local.daos.ExpenseDao
 import com.example.expensemanager.local.daos.ExpenseTrackerDao
 import com.example.expensemanager.models.DEFAULT_EXPENSE_DESCRIPTION
 import com.example.expensemanager.models.ExpenseRequest
 import com.example.expensemanager.models.ExpenseResponse
 import com.example.expensemanager.models.ExpenseTrackerRequest
+import com.example.expensemanager.models.ExpenseUpdateRequest
 import com.example.expensemanager.models.normalizeExpenseCategory
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.firstOrNull
 import retrofit2.Response
 
 private const val TAG = "SyncWorker"
@@ -26,32 +29,40 @@ class SyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val expenseDao: ExpenseDao,
     private val trackerDao: ExpenseTrackerDao,
+    private val tokenManager: TokenManager,
     private val apiService: ExpenseApiService
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        var shouldRetry = syncTrackers()
-        val unsyncedExpenses = expenseDao.getUnsyncedExpenses()
+        val userId = tokenManager.getCurrentUserId().firstOrNull() ?: return Result.success()
+        var shouldRetry = syncTrackers(userId)
+        val unsyncedExpenses = expenseDao.getUnsyncedExpensesForUser(userId)
         val creations = unsyncedExpenses.filter { !it.isDeleted }
         val deletions = unsyncedExpenses.filter { it.isDeleted }
 
         creations.forEach { expense ->
             try {
-                val serverTrackerId = resolveServerTrackerId(expense.trackerId)
+                val serverTrackerId = resolveServerTrackerId(expense.trackerId, userId)
                 if (serverTrackerId == null) {
                     shouldRetry = true
                     return@forEach
                 }
 
-                val request = ExpenseRequest(
-                    id = expense.id,
-                    description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
-                    amount = expense.amount,
-                    date = expense.date,
-                    trackerId = serverTrackerId,
-                    category = normalizeExpenseCategory(expense.category)
-                )
-                val response = createExpenseOnServer(request, serverTrackerId)
+                val updateResponse = updateExpenseOnServer(expense)
+                val response = if (updateResponse.code() == 404 || updateResponse.code() == 405) {
+                    val request = ExpenseRequest(
+                        id = expense.id,
+                        description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
+                        amount = expense.amount,
+                        date = expense.date,
+                        trackerId = serverTrackerId,
+                        category = normalizeExpenseCategory(expense.category)
+                    )
+                    createExpenseOnServer(request, serverTrackerId)
+                } else {
+                    updateResponse
+                }
+
                 if (response.isSuccessful) {
                     val serverExpense = response.body()
                     if (serverExpense != null && serverExpense.id != expense.id) {
@@ -64,6 +75,19 @@ class SyncWorker @AssistedInject constructor(
                                 isSynced = true,
                                 createdAt = serverExpense.createdAt,
                                 updatedAt = serverExpense.updatedAt
+                            )
+                        )
+                    } else if (serverExpense != null) {
+                        expenseDao.upsert(
+                            expense.copy(
+                                description = serverExpense.description,
+                                amount = serverExpense.amount,
+                                date = serverExpense.date,
+                                category = normalizeExpenseCategory(serverExpense.category),
+                                createdAt = serverExpense.createdAt,
+                                updatedAt = serverExpense.updatedAt,
+                                isSynced = true,
+                                isDeleted = false
                             )
                         )
                     } else {
@@ -106,8 +130,8 @@ class SyncWorker @AssistedInject constructor(
         return if (shouldRetry) Result.retry() else Result.success()
     }
 
-    private suspend fun syncTrackers(): Boolean {
-        val unsyncedTrackers = trackerDao.getUnsyncedTrackers()
+    private suspend fun syncTrackers(userId: String): Boolean {
+        val unsyncedTrackers = trackerDao.getUnsyncedTrackers(userId)
         var shouldRetry = false
 
         unsyncedTrackers.forEach { tracker ->
@@ -175,6 +199,16 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
+    private suspend fun updateExpenseOnServer(expense: com.example.expensemanager.local.entities.ExpenseEntity): Response<ExpenseResponse> {
+        val request = ExpenseUpdateRequest(
+            description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
+            amount = expense.amount,
+            date = expense.date,
+            category = normalizeExpenseCategory(expense.category)
+        )
+        return apiService.updateExpense(expense.id, request)
+    }
+
     private suspend fun updateTrackerOnServer(
         serverTrackerId: String,
         request: ExpenseTrackerRequest
@@ -202,8 +236,8 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun resolveServerTrackerId(localTrackerId: String): String? {
-        val tracker = trackerDao.getTrackerById(localTrackerId) ?: return null
+    private suspend fun resolveServerTrackerId(localTrackerId: String, userId: String): String? {
+        val tracker = trackerDao.getTrackerById(localTrackerId, userId) ?: return null
         return tracker.serverId ?: tracker.id.takeIf { tracker.isSynced }
     }
 }

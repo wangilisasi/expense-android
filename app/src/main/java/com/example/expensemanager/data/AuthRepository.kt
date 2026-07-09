@@ -5,6 +5,7 @@ import com.example.expensemanager.local.TokenManager
 import com.example.expensemanager.models.LoginResponse
 import com.example.expensemanager.models.RegisterRequest
 import com.example.expensemanager.models.RegisterResponse
+import com.example.expensemanager.models.UserResponse
 import kotlinx.coroutines.flow.Flow
 import retrofit2.Response
 import javax.inject.Inject
@@ -22,6 +23,23 @@ class AuthRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 val loginResponse = response.body()!!
                 tokenManager.saveToken(loginResponse.accessToken)
+                val userResponse = authApiService.getCurrentUser()
+                if (userResponse.isSuccessful && userResponse.body() != null) {
+                    val user = userResponse.body()!!
+                    tokenManager.saveCurrentUser(
+                        id = user.id,
+                        username = user.username,
+                        email = user.email
+                    )
+                } else {
+                    tokenManager.clearToken()
+                    return Result.failure(
+                        ApiException(
+                            code = userResponse.code(),
+                            message = userResponse.errorMessage("Failed to load user profile")
+                        )
+                    )
+                }
                 Result.success(loginResponse)
             } else {
                 Result.failure(
@@ -52,6 +70,30 @@ class AuthRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Result.failure(Exception(e.toUserFacingMessage("Registration failed")))
+        }
+    }
+
+    suspend fun refreshCurrentUser(): Result<UserResponse> {
+        return try {
+            val response = authApiService.getCurrentUser()
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!
+                tokenManager.saveCurrentUser(
+                    id = user.id,
+                    username = user.username,
+                    email = user.email
+                )
+                Result.success(user)
+            } else {
+                Result.failure(
+                    ApiException(
+                        code = response.code(),
+                        message = response.errorMessage("Failed to load user profile")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception(e.toUserFacingMessage("Failed to load user profile")))
         }
     }
 
