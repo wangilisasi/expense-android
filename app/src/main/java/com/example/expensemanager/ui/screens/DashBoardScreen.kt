@@ -1015,7 +1015,10 @@ fun DailyExpensesSection(
                                             )
                                         }
                                         Text(
-                                            text = formatExpenseTimestamp(trx.createdAt, day.date),
+                                            text = formatExpenseTimestamp(
+                                                trx.occurredAt.ifBlank { trx.createdAt },
+                                                day.date
+                                            ),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
                                         )

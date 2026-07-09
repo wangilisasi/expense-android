@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import retrofit2.Response
 import java.io.IOException
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 
@@ -378,6 +379,7 @@ class ExpenseRepository @Inject constructor(
                     date = entity.date,
                     category = normalizeExpenseCategory(entity.category),
                     trackerId = entity.trackerId,
+                    occurredAt = entity.occurredAt,
                     createdAt = entity.createdAt,
                     updatedAt = entity.updatedAt,
                     isSynced = entity.isSynced
@@ -394,6 +396,7 @@ class ExpenseRepository @Inject constructor(
         category: String = DEFAULT_EXPENSE_CATEGORY
     ) {
         val normalizedCategory = normalizeExpenseCategory(category)
+        val now = Instant.now().toString()
         val newExpense = ExpenseEntity(
             id = UUID.randomUUID().toString(),
             description = description,
@@ -403,8 +406,9 @@ class ExpenseRepository @Inject constructor(
             trackerId = trackerId,
             isSynced = false,
             isDeleted = false,
-            createdAt = System.currentTimeMillis().toString(),
-            updatedAt = System.currentTimeMillis().toString(),
+            occurredAt = now,
+            createdAt = now,
+            updatedAt = now,
         )
         expenseDao.upsert(newExpense)
         val syncedNow = trySyncExpense(newExpense)
@@ -427,7 +431,7 @@ class ExpenseRepository @Inject constructor(
     ) {
         val existing = expenseDao.getExpenseById(expenseId)
             ?: throw ApiException(404, "Expense not found")
-        val now = System.currentTimeMillis().toString()
+        val now = Instant.now().toString()
         val normalizedCategory = normalizeExpenseCategory(category)
         val updatedExpense = existing.copy(
             description = description,
@@ -483,6 +487,7 @@ class ExpenseRepository @Inject constructor(
                 description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
                 amount = expense.amount,
                 date = expense.date,
+                occurredAt = expense.occurredAt,
                 trackerId = serverTrackerId,
                 category = normalizeExpenseCategory(expense.category)
             )
@@ -553,6 +558,7 @@ class ExpenseRepository @Inject constructor(
             description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
             amount = expense.amount,
             date = expense.date,
+            occurredAt = expense.occurredAt,
             category = normalizeExpenseCategory(expense.category)
         )
         return apiService.updateExpense(expense.id, request)
@@ -714,6 +720,7 @@ private fun ExpenseResponse.toEntity(localTrackerId: String): ExpenseEntity {
         date = date,
         category = normalizeExpenseCategory(category),
         trackerId = localTrackerId,
+        occurredAt = occurredAt?.takeIf { it.isNotBlank() } ?: createdAt,
         createdAt = createdAt,
         updatedAt = updatedAt,
         isSynced = true,

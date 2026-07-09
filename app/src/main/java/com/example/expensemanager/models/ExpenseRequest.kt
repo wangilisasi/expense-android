@@ -11,6 +11,8 @@ data class ExpenseRequest(
     val amount: Double,
     @SerializedName("date")
     val date: String,
+    @SerializedName("occurred_at")
+    val occurredAt: String,
     @SerializedName("uuid_tracker_id")
     val trackerId: String,
     @SerializedName("category")

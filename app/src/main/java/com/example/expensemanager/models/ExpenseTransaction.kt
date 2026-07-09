@@ -11,6 +11,8 @@ data class ExpenseTransaction(
     val amount: Double,
     @SerializedName("category")
     val category: String = DEFAULT_EXPENSE_CATEGORY,
+    @SerializedName("occurred_at")
+    val occurredAt: String = "",
     @SerializedName("created_at")
     val createdAt: String = "",
     @SerializedName("updated_at")

@@ -55,6 +55,7 @@ class SyncWorker @AssistedInject constructor(
                         description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
                         amount = expense.amount,
                         date = expense.date,
+                        occurredAt = expense.occurredAt,
                         trackerId = serverTrackerId,
                         category = normalizeExpenseCategory(expense.category)
                     )
@@ -73,6 +74,8 @@ class SyncWorker @AssistedInject constructor(
                                 trackerId = expense.trackerId,
                                 category = normalizeExpenseCategory(serverExpense.category),
                                 isSynced = true,
+                                occurredAt = serverExpense.occurredAt?.takeIf { it.isNotBlank() }
+                                    ?: expense.occurredAt,
                                 createdAt = serverExpense.createdAt,
                                 updatedAt = serverExpense.updatedAt
                             )
@@ -84,6 +87,8 @@ class SyncWorker @AssistedInject constructor(
                                 amount = serverExpense.amount,
                                 date = serverExpense.date,
                                 category = normalizeExpenseCategory(serverExpense.category),
+                                occurredAt = serverExpense.occurredAt?.takeIf { it.isNotBlank() }
+                                    ?: expense.occurredAt,
                                 createdAt = serverExpense.createdAt,
                                 updatedAt = serverExpense.updatedAt,
                                 isSynced = true,
@@ -204,6 +209,7 @@ class SyncWorker @AssistedInject constructor(
             description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
             amount = expense.amount,
             date = expense.date,
+            occurredAt = expense.occurredAt,
             category = normalizeExpenseCategory(expense.category)
         )
         return apiService.updateExpense(expense.id, request)

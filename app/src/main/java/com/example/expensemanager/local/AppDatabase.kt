@@ -13,7 +13,7 @@ import com.example.expensemanager.local.entities.UserEntity
 
 @Database(
     entities = [ExpenseEntity::class, ExpenseTrackerEntity::class, UserEntity::class],
-    version = 3
+    version = 4
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
@@ -24,6 +24,22 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE expense_trackers ADD COLUMN serverId TEXT")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE expenses ADD COLUMN occurredAt TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    """
+                    UPDATE expenses
+                    SET occurredAt = CASE
+                        WHEN createdAt IS NOT NULL AND createdAt != '' THEN createdAt
+                        ELSE date
+                    END
+                    WHERE occurredAt = ''
+                    """
+                )
             }
         }
     }

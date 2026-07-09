@@ -9,6 +9,8 @@ data class ExpenseUpdateRequest(
     val amount: Double,
     @SerializedName("date")
     val date: String,
+    @SerializedName("occurred_at")
+    val occurredAt: String,
     @SerializedName("category")
     val category: String = DEFAULT_EXPENSE_CATEGORY,
     @SerializedName("name")
