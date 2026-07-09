@@ -11,10 +11,10 @@ interface ExpenseDao {
 
     // The single source of truth for the UI. It's a Flow!
     // We only show items that are NOT marked for deletion.
-    @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false ORDER BY date DESC")
+    @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false ORDER BY date DESC, occurredAt DESC")
     fun getExpensesForTracker(trackerId: String): Flow<List<ExpenseEntity>>
 
-    @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false")
+    @Query("SELECT * FROM expenses WHERE trackerId = :trackerId AND isDeleted = false ORDER BY date DESC, occurredAt DESC")
     suspend fun getExpensesForTrackerOnce(trackerId: String): List<ExpenseEntity>
 
     @Query("SELECT * FROM expenses WHERE id = :expenseId")

@@ -13,7 +13,10 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 internal fun buildLocalDailyExpenses(expenses: List<ExpenseResponse>): DailyExpensesResponse {
-    val groupedByDate = expenses.groupBy { it.date }
+    val groupedByDate = expenses
+        .sortedWith(compareByDescending<ExpenseResponse> { it.date }
+            .thenByDescending { it.occurredAt.orEmpty() })
+        .groupBy { it.date }
     val dailyTotals = groupedByDate.entries
         .sortedByDescending { it.key }
         .map { (date, dayExpenses) ->
