@@ -48,20 +48,24 @@ class SyncWorker @AssistedInject constructor(
                     return@forEach
                 }
 
-                val updateResponse = updateExpenseOnServer(expense)
-                val response = if (updateResponse.code() == 404 || updateResponse.code() == 405) {
-                    val request = ExpenseRequest(
-                        id = expense.id,
-                        description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
-                        amount = expense.amount,
-                        date = expense.date,
-                        occurredAt = expense.occurredAt,
-                        trackerId = serverTrackerId,
-                        category = normalizeExpenseCategory(expense.category)
-                    )
-                    createExpenseOnServer(request, serverTrackerId)
+                val request = ExpenseRequest(
+                    id = expense.id,
+                    description = expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION },
+                    amount = expense.amount,
+                    date = expense.date,
+                    occurredAt = expense.occurredAt,
+                    trackerId = serverTrackerId,
+                    category = normalizeExpenseCategory(expense.category)
+                )
+                val createResponse = createExpenseOnServer(request, serverTrackerId)
+                val response = if (
+                    createResponse.isSuccessful &&
+                    createResponse.code() == 200 &&
+                    createResponse.body()?.differsFrom(expense) == true
+                ) {
+                    updateExpenseOnServer(expense)
                 } else {
-                    updateResponse
+                    createResponse
                 }
 
                 if (response.isSuccessful) {
@@ -246,4 +250,14 @@ class SyncWorker @AssistedInject constructor(
         val tracker = trackerDao.getTrackerById(localTrackerId, userId) ?: return null
         return tracker.serverId ?: tracker.id.takeIf { tracker.isSynced }
     }
+}
+
+private fun ExpenseResponse.differsFrom(
+    expense: com.example.expensemanager.local.entities.ExpenseEntity
+): Boolean {
+    return description != expense.description.ifBlank { DEFAULT_EXPENSE_DESCRIPTION } ||
+        amount != expense.amount ||
+        date != expense.date ||
+        normalizeExpenseCategory(category) != normalizeExpenseCategory(expense.category) ||
+        occurredAt?.takeIf { it.isNotBlank() } != expense.occurredAt
 }
