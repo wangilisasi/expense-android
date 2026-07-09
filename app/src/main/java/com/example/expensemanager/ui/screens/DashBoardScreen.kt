@@ -1149,7 +1149,7 @@ private fun ExpenseRowMenu(
 
 private fun formatExpenseTimestamp(rawTimestamp: String, fallbackDate: String): String {
     val zoneId = ZoneId.systemDefault()
-    val formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    val formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
 
     val localDateTime = rawTimestamp
         .takeIf { it.isNotBlank() }
