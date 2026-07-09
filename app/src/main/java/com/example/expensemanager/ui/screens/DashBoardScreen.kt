@@ -61,6 +61,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -1162,6 +1163,9 @@ private fun formatExpenseTimestamp(rawTimestamp: String, fallbackDate: String): 
                 }.getOrNull()
                 ?: runCatching {
                     LocalDateTime.parse(raw.take(19))
+                        .atZone(ZoneOffset.UTC)
+                        .withZoneSameInstant(zoneId)
+                        .toLocalDateTime()
                 }.getOrNull()
         }
 
