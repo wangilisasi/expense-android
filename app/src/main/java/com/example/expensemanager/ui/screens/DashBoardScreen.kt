@@ -22,7 +22,9 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +56,7 @@ import com.example.expensemanager.ui.theme.Slate900
 import com.example.expensemanager.ui.viewmodels.AuthState
 import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -96,6 +99,8 @@ fun DashBoardScreen(
     val username by authViewModel.username.collectAsState()
     val statsUiState by expenseViewModel.statsUiState.collectAsState()
     val hasActiveBudget = uiState.activeTracker != null
+    val refreshScope = rememberCoroutineScope()
+    var isRefreshing by rememberSaveable { mutableStateOf(false) }
 
     // State for the "Add Expense" dialog
     var showAddExpenseDialog by remember { mutableStateOf(false) }
@@ -485,7 +490,20 @@ fun DashBoardScreen(
             }
         }
     ) { innerPadding ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                if (!isRefreshing) {
+                    refreshScope.launch {
+                        isRefreshing = true
+                        try {
+                            expenseViewModel.refreshDashboard()
+                        } finally {
+                            isRefreshing = false
+                        }
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .background(

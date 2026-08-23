@@ -34,9 +34,12 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import retrofit2.Response
 import java.io.IOException
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 
@@ -57,6 +60,9 @@ class ExpenseRepository @Inject constructor(
     private val tokenManager: TokenManager,
     @ApplicationContext private val context: Context,
 ) {
+    // Keeps older tracker reads from overwriting a newer budget update in Room.
+    private val trackerRequestMutex = Mutex()
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun getTrackers(): Flow<List<TrackerSummaryResponse>> {
         return tokenManager.getCurrentUserId().flatMapLatest { userId ->
@@ -77,10 +83,12 @@ class ExpenseRepository @Inject constructor(
     }
 
     suspend fun refreshTrackers() {
-        val userId = requireCurrentUserId()
-        expenseTrackerDao.assignLegacyTrackersToUser(userId)
-        val trackers = apiService.getTrackers()
-        mergeNetworkTrackers(trackers, userId)
+        trackerRequestMutex.withLock {
+            val userId = requireCurrentUserId()
+            expenseTrackerDao.assignLegacyTrackersToUser(userId)
+            val trackers = apiService.getTrackers()
+            mergeNetworkTrackers(trackers, userId)
+        }
     }
 
     suspend fun clearLocalData() {
@@ -89,8 +97,12 @@ class ExpenseRepository @Inject constructor(
         expenseTrackerDao.clearForUser(userId)
     }
 
-    suspend fun getActiveTracker(): ActiveTrackerResult {
-        val response = apiService.getActiveTracker()
+    suspend fun getActiveTracker(): ActiveTrackerResult = trackerRequestMutex.withLock {
+        getActiveTrackerInternal()
+    }
+
+    private suspend fun getActiveTrackerInternal(): ActiveTrackerResult {
+        val response = apiService.getActiveTracker(LocalDate.now().toString())
         if (response.isSuccessful) {
             val tracker = response.body()
                 ?: throw ApiException(500, "Active budget response was empty")
@@ -216,6 +228,16 @@ class ExpenseRepository @Inject constructor(
     }
 
     suspend fun updateTracker(
+        trackerId: String,
+        name: String,
+        budget: Double,
+        startDate: String,
+        endDate: String
+    ): TrackerSummaryResponse = trackerRequestMutex.withLock {
+        updateTrackerInternal(trackerId, name, budget, startDate, endDate)
+    }
+
+    private suspend fun updateTrackerInternal(
         trackerId: String,
         name: String,
         budget: Double,

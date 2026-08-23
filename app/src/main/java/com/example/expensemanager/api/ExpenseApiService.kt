@@ -20,7 +20,9 @@ interface ExpenseApiService {
     suspend fun getTrackers(): List<TrackerSummaryResponse>
 
     @GET("trackers/active")
-    suspend fun getActiveTracker(): Response<TrackerSummaryResponse>
+    suspend fun getActiveTracker(
+        @Query("on_date") onDate: String
+    ): Response<TrackerSummaryResponse>
 
     @GET("trackers/{tracker_uuid_id}")
     suspend fun getTrackerDetails(@Path("tracker_uuid_id") trackerId: String): ExpenseTrackerResponse

@@ -33,6 +33,7 @@ object AppModule {
     @Singleton
     fun provideHttpLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
+            redactHeader("Authorization")
             level = HttpLoggingInterceptor.Level.BODY // Or Level.BASIC, Level.HEADERS
         }
     }

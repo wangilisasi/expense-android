@@ -114,3 +114,15 @@ internal fun TrackerSummaryResponse.isActiveOn(date: LocalDate): Boolean {
     val end = parseDateOrNull(endDate) ?: return false
     return !date.isBefore(start) && !date.isAfter(end)
 }
+
+internal fun selectActiveTracker(
+    trackers: List<TrackerSummaryResponse>,
+    selectedTrackerId: String?,
+    today: LocalDate
+): TrackerSummaryResponse? {
+    val selectedTracker = selectedTrackerId?.let { selectedId ->
+        trackers.firstOrNull { tracker -> tracker.id == selectedId }
+    }
+    return selectedTracker?.takeIf { it.isActiveOn(today) }
+        ?: trackers.firstOrNull { it.isActiveOn(today) }
+}

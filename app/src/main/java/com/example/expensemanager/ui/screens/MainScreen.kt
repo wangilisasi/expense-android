@@ -15,6 +15,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,6 +38,9 @@ import com.example.expensemanager.ui.viewmodels.AuthViewModel
 import com.example.expensemanager.ui.viewmodels.ExpenseListNavigationEvent
 import com.example.expensemanager.ui.viewmodels.ExpenseListViewModel
 import com.example.expensemanager.ui.viewmodels.TrackerSessionState
+import kotlinx.coroutines.delay
+import java.time.Duration
+import java.time.ZonedDateTime
 
 @Composable
 fun MainScreen(rootNavController: NavHostController) {
@@ -50,6 +57,31 @@ fun MainScreen(rootNavController: NavHostController) {
             AuthState.Authenticated -> expenseListViewModel.bootstrapSession(force = true)
             AuthState.Unauthenticated -> expenseListViewModel.clearSession()
             AuthState.Unknown -> Unit
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, authState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && authState == AuthState.Authenticated) {
+                expenseListViewModel.refreshSessionForCurrentDate()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(authState) {
+        if (authState == AuthState.Authenticated) {
+            while (true) {
+                val now = ZonedDateTime.now()
+                val nextDay = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+                val delayMillis = Duration.between(now, nextDay)
+                    .toMillis()
+                    .coerceAtLeast(1_000L)
+                delay(delayMillis + 250L)
+                expenseListViewModel.refreshSessionForCurrentDate()
+            }
         }
     }
 
