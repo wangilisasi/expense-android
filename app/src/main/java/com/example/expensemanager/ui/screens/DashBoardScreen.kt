@@ -104,6 +104,7 @@ fun DashBoardScreen(
 
     // State for the "Add Expense" dialog
     var showAddExpenseDialog by remember { mutableStateOf(false) }
+    var isAddingExpense by remember { mutableStateOf(false) }
     var newExpenseDescription by remember { mutableStateOf("") }
     var newExpenseAmount by remember { mutableStateOf("") }
     var pendingDeleteExpense by remember { mutableStateOf<ExpenseTransaction?>(null) }
@@ -152,6 +153,7 @@ fun DashBoardScreen(
                 .shadow(14.dp, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp),
             onDismissRequest = {
+                if (isAddingExpense) return@AlertDialog
                 showAddExpenseDialog = false
                 newExpenseDescription = ""
                 newExpenseAmount = ""
@@ -251,24 +253,39 @@ fun DashBoardScreen(
                     onClick = {
                         val amountDouble = newExpenseAmount.toDoubleOrNull()
                         if (amountDouble != null) {
+                            isAddingExpense = true
                             expenseViewModel.addExpense(
                                 newExpenseDescription.trim(),
                                 amountDouble,
                                 LocalDate.now().toString(),
-                                newExpenseCategory
+                                newExpenseCategory,
+                                onComplete = { saved ->
+                                    isAddingExpense = false
+                                    if (saved) {
+                                        showAddExpenseDialog = false
+                                        newExpenseDescription = ""
+                                        newExpenseAmount = ""
+                                        newExpenseCategory = availableCategories.firstOrNull {
+                                            it == DEFAULT_EXPENSE_SELECTION_CATEGORY
+                                        } ?: availableCategories.firstOrNull {
+                                            it == DEFAULT_EXPENSE_CATEGORY
+                                        } ?: availableCategories.first()
+                                        categoryMenuExpanded = false
+                                    }
+                                }
                             )
-                            showAddExpenseDialog = false
-                            newExpenseDescription = ""
-                            newExpenseAmount = ""
-                            newExpenseCategory = availableCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
-                                ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
-                                ?: availableCategories.first()
-                            categoryMenuExpanded = false
                         }
                     },
-                    enabled = newExpenseAmount.toDoubleOrNull() != null
+                    enabled = newExpenseAmount.toDoubleOrNull() != null && !isAddingExpense
                 ) {
-                    Text("Add")
+                    if (isAddingExpense) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Add")
+                    }
                 }
             },
             dismissButton = {
@@ -281,7 +298,8 @@ fun DashBoardScreen(
                             ?: availableCategories.firstOrNull { it == DEFAULT_EXPENSE_CATEGORY }
                             ?: availableCategories.first()
                         categoryMenuExpanded = false
-                    }
+                    },
+                    enabled = !isAddingExpense
                 ) {
                     Text("Cancel")
                 }

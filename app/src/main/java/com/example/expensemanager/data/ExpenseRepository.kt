@@ -416,7 +416,7 @@ class ExpenseRepository @Inject constructor(
         date: String,
         trackerId: String,
         category: String = DEFAULT_EXPENSE_CATEGORY
-    ) {
+    ): String {
         val normalizedCategory = normalizeExpenseCategory(category)
         val now = Instant.now().toString()
         val newExpense = ExpenseEntity(
@@ -433,7 +433,12 @@ class ExpenseRepository @Inject constructor(
             updatedAt = now,
         )
         expenseDao.upsert(newExpense)
-        val syncedNow = trySyncExpense(newExpense)
+        return newExpense.id
+    }
+
+    suspend fun syncExpense(expenseId: String) {
+        val expense = expenseDao.getExpenseById(expenseId) ?: return
+        val syncedNow = trySyncExpense(expense)
         if (!syncedNow) {
             scheduleSync()
         }

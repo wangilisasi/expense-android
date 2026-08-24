@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -444,13 +445,15 @@ class ExpenseListViewModel @Inject constructor(
         description: String,
         amount: Double,
         date: String,
-        category: String = DEFAULT_EXPENSE_CATEGORY
+        category: String = DEFAULT_EXPENSE_CATEGORY,
+        onComplete: (Boolean) -> Unit = {}
     ) {
         viewModelScope.launch {
             try {
                 val trackerId = sessionStore.currentTracker?.id
                 if (trackerId == null) {
                     _uiState.update { it.copy(error = "No active budget available. Create one first.") }
+                    onComplete(false)
                     return@launch
                 }
 
@@ -459,10 +462,24 @@ class ExpenseListViewModel @Inject constructor(
                 val safeCategory = allowedCategories.firstOrNull { it == requestedCategory }
                     ?: allowedCategories.firstOrNull { it == DEFAULT_EXPENSE_SELECTION_CATEGORY }
                     ?: DEFAULT_EXPENSE_CATEGORY
-                repository.addExpense(description.trim(), amount, date, trackerId, safeCategory)
+                val expenseId = repository.addExpense(
+                    description.trim(),
+                    amount,
+                    date,
+                    trackerId,
+                    safeCategory
+                )
+
+                _uiState.first { state -> state.expenses.any { it.id == expenseId } }
+                onComplete(true)
+
+                launch {
+                    repository.syncExpense(expenseId)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "An error occurred while adding an expense", e)
                 _uiState.update { it.copy(error = ADD_EXPENSE_ERROR) }
+                onComplete(false)
             }
         }
     }
