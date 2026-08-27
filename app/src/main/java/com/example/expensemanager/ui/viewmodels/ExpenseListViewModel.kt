@@ -81,7 +81,9 @@ class ExpenseListViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            loadSession(showLoading = true)
+            val hasRenderableSession = _uiState.value.activeTracker != null &&
+                sessionStore.hydratedTrackerId == _uiState.value.activeTracker?.id
+            loadSession(showLoading = !hasRenderableSession)
         }
     }
 

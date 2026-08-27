@@ -534,7 +534,7 @@ fun DashBoardScreen(
                 )
         ) {
             when {
-                uiState.isLoading -> {
+                uiState.isLoading && !hasActiveBudget -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
