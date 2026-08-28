@@ -8,6 +8,7 @@ import com.example.expensemanager.models.TrackerSummaryResponse
 // This class represents a single, atomic snapshot of your UI's state
 data class ExpenseListUiState(
     val isLoading: Boolean = false,
+    val isExpenseDataReady: Boolean = false,
     val expenses: List<ExpenseResponse> = emptyList(),
     val dailyExpenses: DailyExpensesResponse = DailyExpensesResponse(),
     val availableCategories: List<String> = FALLBACK_EXPENSE_CATEGORIES,

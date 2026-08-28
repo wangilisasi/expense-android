@@ -235,13 +235,21 @@ class ExpenseListViewModel @Inject constructor(
         val today = LocalDate.now()
         val activeTracker = trackers.firstOrNull { tracker -> tracker.isActiveOn(today) }
         if (activeTracker != null) {
+            val isExpenseDataReady = sessionStore.hydratedTrackerId == activeTracker.id
             sessionStore.currentTrackerId = activeTracker.id
             _sessionState.value = TrackerSessionState.ActiveBudget
             _uiState.update {
                 it.copy(
                     isLoading = false,
+                    isExpenseDataReady = isExpenseDataReady,
                     trackers = trackers,
                     activeTracker = activeTracker,
+                    expenses = if (isExpenseDataReady) it.expenses else emptyList(),
+                    dailyExpenses = if (isExpenseDataReady) {
+                        it.dailyExpenses
+                    } else {
+                        DailyExpensesResponse()
+                    },
                     error = null,
                     infoMessage = infoMessage
                 )
@@ -253,13 +261,21 @@ class ExpenseListViewModel @Inject constructor(
         val cycle = defaultMonthlyBudgetCycle(today)
         val existingCycleTracker = trackers.firstOrNull { tracker -> tracker.matchesCycle(cycle) }
         if (existingCycleTracker != null) {
+            val isExpenseDataReady = sessionStore.hydratedTrackerId == existingCycleTracker.id
             sessionStore.currentTrackerId = existingCycleTracker.id
             _sessionState.value = TrackerSessionState.ActiveBudget
             _uiState.update {
                 it.copy(
                     isLoading = false,
+                    isExpenseDataReady = isExpenseDataReady,
                     trackers = trackers,
                     activeTracker = existingCycleTracker,
+                    expenses = if (isExpenseDataReady) it.expenses else emptyList(),
+                    dailyExpenses = if (isExpenseDataReady) {
+                        it.dailyExpenses
+                    } else {
+                        DailyExpensesResponse()
+                    },
                     error = null,
                     infoMessage = infoMessage
                 )
@@ -281,8 +297,11 @@ class ExpenseListViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isLoading = false,
+                    isExpenseDataReady = false,
                     trackers = repository.getCachedTrackers(),
                     activeTracker = createdTracker,
+                    expenses = emptyList(),
+                    dailyExpenses = DailyExpensesResponse(),
                     error = null,
                     infoMessage = infoMessage
                 )
@@ -304,13 +323,25 @@ class ExpenseListViewModel @Inject constructor(
                     selectedTrackerId = sessionStore.currentTrackerId,
                     today = LocalDate.now()
                 )
+                val trackerChanged = previousTrackerId != tracker?.id
                 sessionStore.currentTrackerId = tracker?.id
                 sessionStore.currentTracker = tracker
 
                 _uiState.update { state ->
                     state.copy(
                         trackers = trackers,
-                        activeTracker = tracker
+                        activeTracker = tracker,
+                        isExpenseDataReady = if (trackerChanged) {
+                            false
+                        } else {
+                            state.isExpenseDataReady
+                        },
+                        expenses = if (trackerChanged) emptyList() else state.expenses,
+                        dailyExpenses = if (trackerChanged) {
+                            DailyExpensesResponse()
+                        } else {
+                            state.dailyExpenses
+                        }
                     )
                 }
 
@@ -329,7 +360,6 @@ class ExpenseListViewModel @Inject constructor(
                     _sessionState.value = TrackerSessionState.ActiveBudget
                 }
 
-                val trackerChanged = previousTrackerId != tracker.id
                 val waitingForTrackerExpenses = sessionStore.hydratedTrackerId != tracker.id
 
                 _statsUiState.update {
@@ -344,7 +374,13 @@ class ExpenseListViewModel @Inject constructor(
 
                 if (trackerChanged || sessionStore.expensesObservationJob == null) {
                     sessionStore.hydratedTrackerId = null
-                    _uiState.update { it.copy(isLoading = true, error = null) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = true,
+                            isExpenseDataReady = false,
+                            error = null
+                        )
+                    }
                     sessionStore.expensesObservationJob?.cancel()
                     sessionStore.expensesObservationJob = viewModelScope.launch {
                         repository.getExpenses(tracker.id).collect { expenses ->
@@ -352,14 +388,6 @@ class ExpenseListViewModel @Inject constructor(
                                 ?.takeIf { it.id == tracker.id }
                                 ?: tracker
                             sessionStore.hydratedTrackerId = tracker.id
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    expenses = expenses,
-                                    dailyExpenses = buildLocalDailyExpenses(expenses),
-                                    error = null
-                                )
-                            }
                             _statsUiState.update { state ->
                                 state.copy(
                                     trackerStats = buildLocalStats(currentTracker, expenses),
@@ -367,6 +395,15 @@ class ExpenseListViewModel @Inject constructor(
                                     trackerName = currentTracker.name,
                                     isLoading = false,
                                     errorMessage = null
+                                )
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    isExpenseDataReady = true,
+                                    expenses = expenses,
+                                    dailyExpenses = buildLocalDailyExpenses(expenses),
+                                    error = null
                                 )
                             }
                         }
@@ -562,6 +599,7 @@ class ExpenseListViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isLoading = shouldLoadTrackerData,
+                    isExpenseDataReady = isTrackerHydrated,
                     trackers = trackers,
                     activeTracker = activeTracker,
                     error = null,
@@ -596,6 +634,7 @@ class ExpenseListViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isLoading = false,
+                isExpenseDataReady = false,
                 trackers = trackers,
                 activeTracker = null,
                 expenses = emptyList(),
@@ -619,6 +658,7 @@ class ExpenseListViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isLoading = isLoading,
+                isExpenseDataReady = false,
                 activeTracker = null,
                 expenses = emptyList(),
                 dailyExpenses = DailyExpensesResponse()

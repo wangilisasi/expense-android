@@ -91,13 +91,11 @@ fun MainScreen(rootNavController: NavHostController) {
         }
     }
 
-    val renderedSessionState = when {
-        uiState.activeTracker != null &&
-            (sessionState == TrackerSessionState.Idle || sessionState == TrackerSessionState.Loading) -> {
-            TrackerSessionState.ActiveBudget
-        }
-        else -> sessionState
-    }
+    val renderedSessionState = resolveRenderedSessionState(
+        sessionState = sessionState,
+        hasActiveTracker = uiState.activeTracker != null,
+        isExpenseDataReady = uiState.isExpenseDataReady
+    )
 
     when (val state = renderedSessionState) {
         TrackerSessionState.Idle,
@@ -195,6 +193,25 @@ fun MainScreen(rootNavController: NavHostController) {
                 }
             }
         }
+    }
+}
+
+internal fun resolveRenderedSessionState(
+    sessionState: TrackerSessionState,
+    hasActiveTracker: Boolean,
+    isExpenseDataReady: Boolean
+): TrackerSessionState {
+    return when {
+        hasActiveTracker &&
+            !isExpenseDataReady &&
+            (sessionState == TrackerSessionState.Idle ||
+                sessionState == TrackerSessionState.Loading ||
+                sessionState == TrackerSessionState.ActiveBudget) -> TrackerSessionState.Loading
+        hasActiveTracker &&
+            (sessionState == TrackerSessionState.Idle || sessionState == TrackerSessionState.Loading) -> {
+            TrackerSessionState.ActiveBudget
+        }
+        else -> sessionState
     }
 }
 
