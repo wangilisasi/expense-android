@@ -91,7 +91,15 @@ fun MainScreen(rootNavController: NavHostController) {
         }
     }
 
-    when (val state = sessionState) {
+    val renderedSessionState = when {
+        uiState.activeTracker != null &&
+            (sessionState == TrackerSessionState.Idle || sessionState == TrackerSessionState.Loading) -> {
+            TrackerSessionState.ActiveBudget
+        }
+        else -> sessionState
+    }
+
+    when (val state = renderedSessionState) {
         TrackerSessionState.Idle,
         TrackerSessionState.Loading,
         TrackerSessionState.RequiresLogin -> {

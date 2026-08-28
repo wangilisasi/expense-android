@@ -134,7 +134,11 @@ class ExpenseListViewModel @Inject constructor(
     }
 
     private suspend fun loadSessionInternal(showLoading: Boolean) {
-        if (showLoading) {
+        val shouldBlockUi = showLoading &&
+            _sessionState.value != TrackerSessionState.ActiveBudget &&
+            _sessionState.value != TrackerSessionState.NoActiveBudget &&
+            _uiState.value.activeTracker == null
+        if (shouldBlockUi) {
             _sessionState.value = TrackerSessionState.Loading
             _uiState.update { it.copy(isLoading = true, error = null, infoMessage = null) }
             _statsUiState.update { it.copy(isLoading = true, errorMessage = null) }

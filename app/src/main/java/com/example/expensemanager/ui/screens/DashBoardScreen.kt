@@ -130,15 +130,6 @@ fun DashBoardScreen(
             amountFocusRequester.requestFocus()
         }
     }
-    LaunchedEffect(pendingEditExpense?.first?.id) {
-        pendingEditExpense?.first?.let { expense ->
-            editExpenseDescription = expense.name.takeIf { it != DEFAULT_EXPENSE_DESCRIPTION }.orEmpty()
-            editExpenseAmount = expense.amount.toString()
-            editExpenseCategory = expense.category
-            editCategoryMenuExpanded = false
-        }
-    }
-
     // Budget values
     val budget = statsUiState.trackerStats?.budget ?: 0.0
     val targetSpend = statsUiState.trackerStats?.targetExpenditurePerDay ?: 0.0
@@ -613,6 +604,12 @@ fun DashBoardScreen(
                             DailyExpensesSection(
                                 dailyExpenses = uiState.dailyExpenses.daily_expenses,
                                 onEditClick = { expense, date ->
+                                    editExpenseDescription = expense.name
+                                        .takeIf { it != DEFAULT_EXPENSE_DESCRIPTION }
+                                        .orEmpty()
+                                    editExpenseAmount = expense.amount.toString()
+                                    editExpenseCategory = expense.category
+                                    editCategoryMenuExpanded = false
                                     pendingEditExpense = expense to date
                                 },
                                 onDeleteClick = { expense ->
@@ -1136,6 +1133,7 @@ private fun ExpenseRowMenu(
     onDeleteClick: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Box {
         IconButton(
@@ -1163,7 +1161,10 @@ private fun ExpenseRowMenu(
                 },
                 onClick = {
                     expanded = false
-                    onEditClick()
+                    scope.launch {
+                        withFrameNanos { }
+                        onEditClick()
+                    }
                 }
             )
             DropdownMenuItem(
@@ -1177,7 +1178,10 @@ private fun ExpenseRowMenu(
                 },
                 onClick = {
                     expanded = false
-                    onDeleteClick()
+                    scope.launch {
+                        withFrameNanos { }
+                        onDeleteClick()
+                    }
                 }
             )
         }
